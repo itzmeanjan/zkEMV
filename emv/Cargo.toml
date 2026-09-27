@@ -1,0 +1,32 @@
+[package]
+name = "emv"
+version = "0.1.0"
+resolver = "3"
+edition = "2024"
+authors = ["Anjan Roy <hello@itzmeanjan.in>"]
+description = "Prove and verify, in zero knowledge, that a genuine EMV contactless card signed a verifier's nonce"
+publish = false
+
+[dependencies]
+anyhow = "=1.0.104"
+provekit-common = "=1.0.2"
+provekit-prover = "=1.0.2"
+provekit-r1cs-compiler = "=1.0.2"
+provekit-verifier = "=1.0.2"
+noirc_abi = { package = "provekit_noirc_abi", version = "=1.0.0-beta.26" }
+noirc_artifacts = { package = "provekit_noirc_artifacts", version = "=1.0.0-beta.26" }
+num-bigint = "=0.5.1"
+num-traits = "=0.2.19"
+serde_json = "=1.0.151"
+thiserror = "=2.0.21"
+
+[dev-dependencies]
+const-hex = "=1.19.3"
+
+[profile.dev.package."*"]
+opt-level = 3
+debug-assertions = false
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
