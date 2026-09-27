@@ -45,3 +45,8 @@ format-check: $(VENV_STAMP) ## Fails if any Python, Noir or Rust source is not f
 	$(VENV_BIN)/black --check $(PY_SCRIPTS)
 	cd $(CIRCUITS_DIR) && nargo fmt --check
 	cd $(EMV_DIR) && cargo fmt --check
+
+.PHONY: clean
+clean: ## Removes build outputs, proving artifacts and Python caches; keeps the venv
+	rm -rf $(CIRCUITS_DIR)/target $(CIRCUITS_DIR)/artifacts $(EMV_DIR)/target .mypy_cache
+	find . -path ./$(VENV) -prune -o -type d -name __pycache__ -exec rm -rf {} +
