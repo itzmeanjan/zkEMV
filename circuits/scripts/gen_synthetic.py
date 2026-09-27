@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-One synthetic tap per card kind: real-tap structure, test keys, fake PAN.
-Writes fixtures/<pkg>.json and fixtures/test-ca-keys.json. Seeded, not a CSPRNG.
-"""
+"""Generates synthetic card tap data"""
 
 import hashlib
 import json
