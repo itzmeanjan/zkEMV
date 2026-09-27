@@ -1,0 +1,4 @@
+max_width = 160
+tab_spaces = 4
+reorder_imports = true
+remove_nested_parens = true

@@ -39,19 +39,13 @@ global HASH_TAIL: u32 = HASH_LEN + 1;
 
 /// The modulus must be exactly `BITS` bits. `redc` only feeds unconstrained Barrett
 /// reduction: a wrong value breaks completeness, never soundness.
-pub fn key_from_be_bytes<let N: u32, let BITS: u32>(
-    modulus: [u8; (BITS + 7) / 8],
-    redc: [u128; N],
-) -> BigNumParams<N, BITS> {
+pub fn key_from_be_bytes<let N: u32, let BITS: u32>(modulus: [u8; (BITS + 7) / 8], redc: [u128; N]) -> BigNumParams<N, BITS> {
     BigNumParams::new(false, from_be_bytes_unsafe::<N, BITS>(&modulus), redc)
 }
 
 /// `from_be_bytes` asserts `sig < n`; `to_be_bytes` asserts the result is canonical, without
 /// which a prover could hand over `m + n` and change the bytes read.
-pub fn rsa_recover<let N: u32, let BITS: u32>(
-    key: BigNumParams<N, BITS>,
-    sig: [u8; (BITS + 7) / 8],
-) -> [u8; (BITS + 7) / 8] {
+pub fn rsa_recover<let N: u32, let BITS: u32>(key: BigNumParams<N, BITS>, sig: [u8; (BITS + 7) / 8]) -> [u8; (BITS + 7) / 8] {
     let s = RuntimeBigNum::from_be_bytes(key, sig);
     let m = s.sqr() * s;
     m.to_be_bytes()
@@ -76,10 +70,7 @@ fn copy_hashed_body<let L: u32, let H: u32>(m: [u8; L], out: &mut [u8; H]) {
 }
 
 /// Book 2, 5.1 and 6.1.
-fn assemble_modulus<let L: u32, let K: u32, let REM: u32, let OFFSET: u32>(
-    m: [u8; L],
-    remainder: [u8; REM],
-) -> [u8; K] {
+fn assemble_modulus<let L: u32, let K: u32, let REM: u32, let OFFSET: u32>(m: [u8; L], remainder: [u8; REM]) -> [u8; K] {
     let space = L - OFFSET - HASH_TAIL;
     if K > space {
         std::static_assert(
@@ -128,11 +119,7 @@ pub struct IssuerCert<let K: u32> {
 /// | 15 | L-36 | issuer modulus, leftmost digits |
 /// | L-21 | 20 | SHA-1 |
 /// | L-1 | 1 | trailer `BC` |
-pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(
-    m: [u8; L],
-    remainder: [u8; REM],
-    exponent: u8,
-) -> IssuerCert<K> {
+pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(m: [u8; L], remainder: [u8; REM], exponent: u8) -> IssuerCert<K> {
     assert_envelope(m, FMT_ISSUER_CERT);
     assert_eq(m[11], HASH_ALG_SHA1, "issuer certificate hash algorithm is not SHA-1");
     assert_eq(m[12], PK_ALG_RSA, "issuer key algorithm is not RSA");
@@ -149,11 +136,7 @@ pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(
     input[body_len + REM] = exponent;
     assert_hash(m, sha1::sha1::digest(input));
 
-    IssuerCert {
-        modulus: assemble_modulus::<_, K, REM, 15>(m, remainder),
-        issuer_id: [m[2], m[3], m[4], m[5]],
-        expiry: [m[6], m[7]],
-    }
+    IssuerCert { modulus: assemble_modulus::<_, K, REM, 15>(m, remainder), issuer_id: [m[2], m[3], m[4], m[5]], expiry: [m[6], m[7]] }
 }
 
 pub struct IccCert<let K: u32> {

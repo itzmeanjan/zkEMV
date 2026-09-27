@@ -26,10 +26,7 @@ impl<let N: u32, let BITS: u32> DoubledKey<N, BITS> {
         let (doubled, carries) = unsafe { __double(n) };
         let mut carry_in: Field = 0;
         for i in 0..N {
-            assert_eq(
-                2 * (n[i] as Field) + carry_in,
-                (doubled[i] as Field) + (carries[i] as Field) * TWO_POW_120,
-            );
+            assert_eq(2 * (n[i] as Field) + carry_in, (doubled[i] as Field) + (carries[i] as Field) * TWO_POW_120);
             carry_in = carries[i] as Field;
         }
         assert(!carries[N - 1], "doubled modulus overflows its limbs");
