@@ -93,14 +93,12 @@ class RsaKey:
 def split_key(modulus: bytes, space: int) -> tuple[bytes, bytes]:
     if len(modulus) > space:
         return modulus[:space], modulus[space:]
-    return modulus + b"\xBB" * (space - len(modulus)), b""
+    return modulus + b"\xbb" * (space - len(modulus)), b""
 
 
-def certificate(signer: RsaKey, fmt: int, owner_id: bytes, modulus: bytes, serial: bytes,
-                static: bytes = b"") -> tuple[bytes, bytes]:
+def certificate(signer: RsaKey, fmt: int, owner_id: bytes, modulus: bytes, serial: bytes, static: bytes = b"") -> tuple[bytes, bytes]:
     """Book 2 tables 6 (issuer) and 14 (ICC)."""
-    head = (bytes([fmt]) + owner_id + CERT_EXPIRY_MMYY + serial
-            + bytes([HASH_SHA1, PK_RSA, len(modulus), 1]))
+    head = bytes([fmt]) + owner_id + CERT_EXPIRY_MMYY + serial + bytes([HASH_SHA1, PK_RSA, len(modulus), 1])
     leftmost, remainder = split_key(modulus, signer.bits // 8 - ENVELOPE_LEN - len(head))
     cert = signer.sign(head + leftmost, remainder + bytes([EXPONENT]) + static)
     return cert, remainder
@@ -109,7 +107,7 @@ def certificate(signer: RsaKey, fmt: int, owner_id: bytes, modulus: bytes, seria
 def sdad(icc: RsaKey, fmt: int, dynamic: bytes, terminal_data: bytes) -> bytes:
     """Book 2 table 17."""
     body = bytes([fmt, HASH_SHA1, len(dynamic)]) + dynamic
-    body += b"\xBB" * (icc.bits // 8 - ENVELOPE_LEN - len(body))
+    body += b"\xbb" * (icc.bits // 8 - ENVELOPE_LEN - len(body))
     return icc.sign(body, terminal_data)
 
 
@@ -123,19 +121,19 @@ def mc_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random) -> bytes:
     """The ODA record, in the tag order and lengths of the Mastercard corpus card.
     Values are synthetic; the circuit hashes this record but never parses it."""
     fields = [
-        ("5F25", bytes.fromhex("260101")),        # effective date YYMMDD
-        ("5F24", bytes.fromhex("491231")),        # expiry date YYMMDD
+        ("5F25", bytes.fromhex("260101")),  # effective date YYMMDD
+        ("5F24", bytes.fromhex("491231")),  # expiry date YYMMDD
         ("5A", pan_bcd8),
-        ("5F34", b"\x01"),                        # PAN sequence number
-        ("9F07", b"\xFF\x00"),                    # application usage control
-        ("8C", rng.randbytes(33)),                # CDOL1
-        ("8D", rng.randbytes(12)),                # CDOL2
-        ("8E", rng.randbytes(14)),                # CVM list
-        ("9F0D", rng.randbytes(5)),               # IAC default
-        ("9F0E", rng.randbytes(5)),               # IAC denial
-        ("9F0F", rng.randbytes(5)),               # IAC online
-        ("5F28", bytes.fromhex("0999")),          # issuer country (unassigned)
-        ("9F4A", b"\x82"),                        # SDA tag list: the AIP
+        ("5F34", b"\x01"),  # PAN sequence number
+        ("9F07", b"\xff\x00"),  # application usage control
+        ("8C", rng.randbytes(33)),  # CDOL1
+        ("8D", rng.randbytes(12)),  # CDOL2
+        ("8E", rng.randbytes(14)),  # CVM list
+        ("9F0D", rng.randbytes(5)),  # IAC default
+        ("9F0E", rng.randbytes(5)),  # IAC denial
+        ("9F0F", rng.randbytes(5)),  # IAC online
+        ("5F28", bytes.fromhex("0999")),  # issuer country (unassigned)
+        ("9F4A", b"\x82"),  # SDA tag list: the AIP
     ]
     value = b"".join(tlv(t, v) for t, v in fields)
     assert len(value) + len(aip) == 131
@@ -193,8 +191,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     issuer_id = bytes.fromhex(pan[:6] + "FF")
     aip = bytes.fromhex(kind["aip"])
 
-    cert90, rem92 = certificate(ca, vc.FMT_ISSUER, issuer_id, issuer.modulus(),
-                                rng.randbytes(3))
+    cert90, rem92 = certificate(ca, vc.FMT_ISSUER, issuer_id, issuer.modulus(), rng.randbytes(3))
 
     exchanges: list[dict[str, Any]] = []
     afl = [{"sfi": 1, "first": 1, "last": 1, "odaRecords": 0}]
@@ -203,18 +200,21 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         record = kind["static_record"](pan_bcd8, aip, rng)
         static = record + aip
         afl = [{"sfi": 2, "first": 1, "last": 1, "odaRecords": 1}]
-        exchanges.append({"label": "READ RECORD sfi=2 rec=1", "command": "00B2011400",
-                          "response": (tlv("70", record) + b"\x90\x00").hex().upper(),
-                          "sw": "9000", "ok": True})
+        exchanges.append(
+            {"label": "READ RECORD sfi=2 rec=1", "command": "00B2011400", "response": (tlv("70", record) + b"\x90\x00").hex().upper(), "sw": "9000", "ok": True}
+        )
 
-    cert9f46, rem9f48 = certificate(issuer, vc.FMT_ICC, pan_bcd10, icc.modulus(),
-                                    rng.randbytes(3), static)
+    cert9f46, rem9f48 = certificate(issuer, vc.FMT_ICC, pan_bcd10, icc.modulus(), rng.randbytes(3), static)
     assert not rem9f48, "no kind in the corpus has an ICC remainder (9F48)"
 
     # TTQ and country code are placeholders; no circuit reads them.
-    terminal = {"ttq": [0x36, 0x00, 0x40, 0x00], "countryCode": [0x08, 0x40],
-                "currencyCode": [0x08, 0x40], "amountAuthorised": [0] * 6,
-                "unpredictableNumber": list(rng.randbytes(4))}
+    terminal = {
+        "ttq": [0x36, 0x00, 0x40, 0x00],
+        "countryCode": [0x08, 0x40],
+        "currencyCode": [0x08, 0x40],
+        "amountAuthorised": [0] * 6,
+        "unpredictableNumber": list(rng.randbytes(4)),
+    }
     un = bytes(terminal["unpredictableNumber"])
     elements = [
         element("82", aip, "GPO"),
@@ -233,8 +233,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         dynamic = bytes([len(atc)]) + atc
         # Card Authentication Related Data: fDDA version, card UN, CTQ.
         card_auth = b"\x01" + rng.randbytes(4) + b"\x00\x00"
-        td = (un + bytes(terminal["amountAuthorised"]) + bytes(terminal["currencyCode"])
-              + card_auth)
+        td = un + bytes(terminal["amountAuthorised"]) + bytes(terminal["currencyCode"]) + card_auth
         # PDOL as on the Visa corpus cards: 9F66 9F02 9F03 9F1A 95 5F2A 9A 9C 9F37.
         pdol = bytes.fromhex("9F66049F02069F03069F1A0295055F2A029A039C019F3704")
         elements += [
@@ -248,12 +247,10 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         td = un
         elements.append(element("9F4A", b"\x82", "READ RECORD"))
 
-    elements.append(element("9F4B", sdad(icc, kind["sdad_format"], dynamic, td),
-                            kind["sdad_source"]))
+    elements.append(element("9F4B", sdad(icc, kind["sdad_format"], dynamic, td), kind["sdad_source"]))
     return {
         "synthetic": True,
-        "notes": f"Synthetic {pkg} tap from scripts/gen_synthetic.py (seed {SEED}). "
-                 "Test CA key, fake PAN; no real card data.",
+        "notes": f"Synthetic {pkg} tap from scripts/gen_synthetic.py (seed {SEED}). " "Test CA key, fake PAN; no real card data.",
         "selectedAid": kind["aid"],
         "aip": kind["aip"],
         "afl": afl,
@@ -278,9 +275,18 @@ def main() -> None:
         open(os.path.join(FIXTURES, pkg + ".json"), "w").write(json.dumps(doc, indent=2) + "\n")
         rid = kind["aid"][:10]
         checksum = hashlib.sha1(bytes.fromhex(rid + CA_INDEX + ca_mod + exponent)).hexdigest().upper()
-        keys.append({"scheme": "TEST", "rid": rid, "index": CA_INDEX, "exponent": exponent,
-                     "modulus_bits": CA_BITS, "modulus": ca_mod, "checksum": checksum,
-                     "expires": None})
+        keys.append(
+            {
+                "scheme": "TEST",
+                "rid": rid,
+                "index": CA_INDEX,
+                "exponent": exponent,
+                "modulus_bits": CA_BITS,
+                "modulus": ca_mod,
+                "checksum": checksum,
+                "expires": None,
+            }
+        )
         print(f"wrote fixtures/{pkg}.json")
 
     table = {

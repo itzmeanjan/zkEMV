@@ -21,8 +21,7 @@ Elements = dict[str, dict[str, Any]]
 CAKeys = dict[tuple[str, str], list[tuple[bytes, bytes, str]]]
 Verified = tuple[dict[str, Any] | None, str | None]
 
-CA_PUBKEYS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
-                          "data", "certificate-authority-public-keys.json")
+CA_PUBKEYS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "certificate-authority-public-keys.json")
 
 
 def h2b(s: str | None) -> bytes:
@@ -34,9 +33,7 @@ def load_CA_pubkeys(path: str) -> CAKeys:
     for k in json.load(open(path))["keys"]:
         rid, idx, exp, mod = (k[f].upper() for f in ("rid", "index", "exponent", "modulus"))
         pub = (k["checksum"] or "").upper()
-        calc = hashlib.sha1(
-            h2b(rid) + h2b(idx) + h2b(mod) + h2b(exp)
-        ).hexdigest().upper()
+        calc = hashlib.sha1(h2b(rid) + h2b(idx) + h2b(mod) + h2b(exp)).hexdigest().upper()
         if calc != pub:
             continue
         out.setdefault((rid, idx), []).append((h2b(exp), h2b(mod), pub))
@@ -64,8 +61,7 @@ def build_key(leftmost: bytes, remainder: bytes, length: int) -> bytes:
     return (leftmost + remainder)[:length]
 
 
-def verify_issuer_cert(cert: bytes, capk_mod: bytes, capk_exp: bytes, remainder: bytes,
-                       exponent: bytes) -> Verified:
+def verify_issuer_cert(cert: bytes, capk_mod: bytes, capk_exp: bytes, remainder: bytes, exponent: bytes) -> Verified:
     """Book 2 table 6."""
     m, err = recover(cert, capk_mod, capk_exp)
     if m is None:
@@ -99,8 +95,7 @@ def verify_issuer_cert(cert: bytes, capk_mod: bytes, capk_exp: bytes, remainder:
     }, None
 
 
-def verify_icc_cert(cert: bytes, iss_mod: bytes, iss_exp: bytes, remainder: bytes,
-                    exponent: bytes, static_data: bytes = b"") -> Verified:
+def verify_icc_cert(cert: bytes, iss_mod: bytes, iss_exp: bytes, remainder: bytes, exponent: bytes, static_data: bytes = b"") -> Verified:
     """Book 2 table 14."""
     m, err = recover(cert, iss_mod, iss_exp)
     if m is None:
@@ -117,9 +112,7 @@ def verify_icc_cert(cert: bytes, iss_mod: bytes, iss_exp: bytes, remainder: byte
     leftmost = m[21 : n_i - 21]
     hash_result = m[n_i - 21 : n_i - 1]
 
-    calc = hashlib.sha1(
-        m[1 : n_i - 21] + remainder + exponent + static_data
-    ).digest()
+    calc = hashlib.sha1(m[1 : n_i - 21] + remainder + exponent + static_data).digest()
 
     return {
         "pan": pan,
@@ -134,15 +127,13 @@ def verify_icc_cert(cert: bytes, iss_mod: bytes, iss_exp: bytes, remainder: byte
     }, None
 
 
-def verify_sdad(sdad: bytes, icc_mod: bytes, icc_exp: bytes,
-                terminal_data_candidates: list[tuple[str, bytes]]) -> Verified:
+def verify_sdad(sdad: bytes, icc_mod: bytes, icc_exp: bytes, terminal_data_candidates: list[tuple[str, bytes]]) -> Verified:
     """Book 2 table 17."""
     m, err = recover(sdad, icc_mod, icc_exp)
     if m is None:
         return None, err
     if m[1] not in FMT_SDAD:
-        return None, (f"signed data format {m[1]:02X}, expected one of "
-                      + "/".join(f"{k:02X}" for k in FMT_SDAD))
+        return None, (f"signed data format {m[1]:02X}, expected one of " + "/".join(f"{k:02X}" for k in FMT_SDAD))
 
     n_ic = len(icc_mod)
     fmt = FMT_SDAD[m[1]]
@@ -178,10 +169,7 @@ def static_data_to_authenticate(doc: Capture, els: Elements) -> bytes:
     for entry in doc.get("afl", []):
         for rec in range(entry["first"], entry["first"] + entry["odaRecords"]):
             label = f"sfi={entry['sfi']} rec={rec}"
-            ex = next(
-                (e for e in doc["exchanges"]
-                 if label in e["label"] and e["ok"]), None
-            )
+            ex = next((e for e in doc["exchanges"] if label in e["label"] and e["ok"]), None)
             if not ex:
                 continue
             raw = h2b(ex["response"])[:-2]
@@ -232,50 +220,40 @@ def run(path: str, capks: CAKeys) -> bool:
         got, err = verify_issuer_cert(cert90, mod, exp, rem92, exp9f32)
         if got:
             issuer = got
-            print(f"{OK} issuer certificate verifies under CA key "
-                  f"{len(mod) * 8}-bit (hash {pub[:16]}...)")
+            print(f"{OK} issuer certificate verifies under CA key " f"{len(mod) * 8}-bit (hash {pub[:16]}...)")
             break
         print(f"{INFO}tried {len(mod) * 8}-bit CA key: {err}")
     if not issuer:
         print(f"{BAD} issuer certificate did not verify under any candidate key")
         return False
 
-    print(f"{INFO}  issuer id {issuer['issuer_id']}   cert expiry "
-          f"{issuer['expiry']}   serial {issuer['serial']}")
-    print(f"{INFO}  issuer modulus {issuer['pk_len']}B "
-          f"({issuer['pk_len'] * 8}-bit), exponent "
-          f"{int.from_bytes(issuer['exponent'], 'big')}")
+    print(f"{INFO}  issuer id {issuer['issuer_id']}   cert expiry " f"{issuer['expiry']}   serial {issuer['serial']}")
+    print(f"{INFO}  issuer modulus {issuer['pk_len']}B " f"({issuer['pk_len'] * 8}-bit), exponent " f"{int.from_bytes(issuer['exponent'], 'big')}")
 
     cert46 = h2b(els["9F46"]["value"])
     rem9f48 = h2b(els.get("9F48", {}).get("value"))
     exp9f47 = h2b(els.get("9F47", {}).get("value"))
 
     static = static_data_to_authenticate(doc, els)
-    icc, err = verify_icc_cert(
-        cert46, issuer["modulus"], issuer["exponent"], rem9f48, exp9f47, static
-    )
+    icc, err = verify_icc_cert(cert46, issuer["modulus"], issuer["exponent"], rem9f48, exp9f47, static)
     if not icc:
         print(f"{BAD} ICC certificate: {err}")
         return False
 
     print(f"{OK} ICC certificate recovers under the issuer key")
     pan = icc["pan"]
-    print(f"{INFO}  PAN in certificate {pan[:6]}{'*' * (len(pan) - 10)}{pan[-4:]}"
-          f"   cert expiry {icc['expiry']}   serial {icc['serial']}")
+    print(f"{INFO}  PAN in certificate {pan[:6]}{'*' * (len(pan) - 10)}{pan[-4:]}" f"   cert expiry {icc['expiry']}   serial {icc['serial']}")
     print(f"{INFO}  ICC modulus {icc['pk_len']}B ({icc['pk_len'] * 8}-bit)")
     if icc["hash_ok"]:
-        note = (f"over {len(static)}B of ODA static data" if static
-                else "no ODA static data on this card")
+        note = f"over {len(static)}B of ODA static data" if static else "no ODA static data on this card"
         print(f"{OK} ICC certificate hash verifies ({note})")
     else:
-        print(f"{BAD} ICC certificate hash MISMATCH "
-              f"({len(static)}B static data supplied)")
+        print(f"{BAD} ICC certificate hash MISMATCH " f"({len(static)}B static data supplied)")
 
     plain = els.get("5A", {}).get("value", "").rstrip("Ff")
     if plain:
         agree = plain.upper().rstrip("F") == pan
-        print(f"{OK if agree else BAD} certificate PAN "
-              f"{'matches' if agree else 'DIFFERS FROM'} tag 5A")
+        print(f"{OK if agree else BAD} certificate PAN " f"{'matches' if agree else 'DIFFERS FROM'} tag 5A")
 
     if "9F4B" not in els:
         print(f"{INFO}no 9F4B in this capture; nothing dynamic to check")
@@ -290,8 +268,7 @@ def run(path: str, capks: CAKeys) -> bool:
 
     cands_td = [
         ("9F37 (DDA, default DDOL)", un),
-        ("9F37 || 9F02 || 5F2A || 9F69 (Visa fDDA)",
-         un + amount + currency + card_auth),
+        ("9F37 || 9F02 || 5F2A || 9F69 (Visa fDDA)", un + amount + currency + card_auth),
         ("9F37 || 9F02 || 5F2A", un + amount + currency),
         ("9F02 || 5F2A || 9F37", amount + currency + un),
         ("9F37 || 9F02 || 5F2A || 9F1A", un + amount + currency + country),
@@ -299,22 +276,18 @@ def run(path: str, capks: CAKeys) -> bool:
         ("(none)", b""),
     ]
 
-    sd, err = verify_sdad(
-        h2b(els["9F4B"]["value"]), icc["modulus"], icc["exponent"], cands_td
-    )
+    sd, err = verify_sdad(h2b(els["9F4B"]["value"]), icc["modulus"], icc["exponent"], cands_td)
     if not sd:
         print(f"{BAD} dynamic signature: {err}")
         return False
 
-    print(f"{OK} dynamic signature recovers under the ICC key — {sd['format']}, "
-          f"{sd['icc_dynamic_len']}B ICC dynamic data")
+    print(f"{OK} dynamic signature recovers under the ICC key — {sd['format']}, " f"{sd['icc_dynamic_len']}B ICC dynamic data")
     if sd["matched"]:
         name, td = sd["matched"]
         print(f"{OK} SIGNATURE HASH VERIFIES over {name}")
         nonce_hex = un.hex().upper()
         covered = un in td
-        print(f"{OK if covered else BAD}   our nonce {nonce_hex} "
-              f"{'IS' if covered else 'is NOT'} covered by the signature")
+        print(f"{OK if covered else BAD}   our nonce {nonce_hex} " f"{'IS' if covered else 'is NOT'} covered by the signature")
     else:
         print(f"{INFO}hash did not match any candidate terminal-data layout")
         print(f"{INFO}  nonce sent: {un.hex().upper()}")
@@ -330,8 +303,7 @@ def main() -> int:
     a = ap.parse_args()
 
     capks = load_CA_pubkeys(a.capk)
-    print(f"loaded {sum(len(v) for v in capks.values())} checksum-verified "
-          f"CA keys from {a.capk}\n")
+    print(f"loaded {sum(len(v) for v in capks.values())} checksum-verified " f"CA keys from {a.capk}\n")
 
     files = []
     for pat in a.captures:
