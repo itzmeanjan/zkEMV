@@ -1,0 +1,113 @@
+{
+  "synthetic": true,
+  "notes": "Synthetic visa_fdda tap from scripts/gen_synthetic.py (seed 2609). Test CA key, fake PAN; no real card data.",
+  "selectedAid": "A0000000031010",
+  "aip": "2000",
+  "afl": [
+    {
+      "sfi": 1,
+      "first": 1,
+      "last": 1,
+      "odaRecords": 0
+    }
+  ],
+  "terminal": {
+    "ttq": [
+      54,
+      0,
+      64,
+      0
+    ],
+    "countryCode": [
+      8,
+      64
+    ],
+    "currencyCode": [
+      8,
+      64
+    ],
+    "amountAuthorised": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "unpredictableNumber": [
+      101,
+      100,
+      32,
+      70
+    ]
+  },
+  "exchanges": [],
+  "elements": [
+    {
+      "tag": "82",
+      "value": "2000",
+      "length": 2,
+      "source": "GPO"
+    },
+    {
+      "tag": "8F",
+      "value": "EE",
+      "length": 1,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "90",
+      "value": "CACB0F5555C9F3675BAC5DE553BCE3812A2770EA56E53786E5CE1A57171CA1F16845198B6C99C2950ACEF00564201838E6D825FC92DF8870465A145786EA55336793ADFE670521F01976012E8961DF8AD41E3A24E05E0AA24B2129C9033086CBDB27D6A54DCAC400F0193A3EC96736FBA2CBE1E9EE75B9C69A3B2AC9DB613657AA01E6D08C626D9F829FCD76AF23399E430E7F4723A34654D11FFA9598C1C20E105E37765858E41E137EB734550AEA07421622DF85B644436D6A210C39BA8319E6EA9E4878047EEA181D90281BB4169EAF7C22FEC4974E7DB4D77E7B9FF5DC48F4F95275C2F4073FB972A73EE19987E12EF0A68904905BAC",
+      "length": 248,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "9F32",
+      "value": "03",
+      "length": 1,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "9F46",
+      "value": "5BB6EB4CC098F51ABF3C92513311E02F11AFADC488947E349558B94E05FEAC929F9300BE2F9562823C2E988D597C38CB5CF5AEE9745F96309D8B38C9E9F7CB061AA8D2B1EF8A72FC5A4911AB33AB052D60CBA3303A203C9FBA99F6AFA82859E95454220C952936264EB1FF0C8CC82C185C9FE469F810BD90BD5209B137AA7B50C5C8007AB4170F1B167047B7B2E0EE2464C114EC360972F8DD29564ED10F25E4C475654307B16F45E4172EB39DCDA4A6",
+      "length": 176,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "9F47",
+      "value": "03",
+      "length": 1,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "5A",
+      "value": "9999900000000005",
+      "length": 8,
+      "source": "READ RECORD"
+    },
+    {
+      "tag": "9F38",
+      "value": "9F66049F02069F03069F1A0295055F2A029A039C019F3704",
+      "length": 24,
+      "source": "SELECT AID"
+    },
+    {
+      "tag": "9F69",
+      "value": "01FCF18E110000",
+      "length": 7,
+      "source": "GPO"
+    },
+    {
+      "tag": "9F36",
+      "value": "4D51",
+      "length": 2,
+      "source": "GPO"
+    },
+    {
+      "tag": "9F4B",
+      "value": "85BB634A6D2A903F971A193F46E9B10FA9F6AA9E4C5EFC502C69B1FBF6A7B71CDCED4744EDC545FA1E25001FC02DC5499B309AA6F5D929C1817850BE27F6CF821F8DC55532556A9C4FDC3AEA456BE276506B0C8BC4FCC4C3482FC4C902192249758D340E4EA1A4DEDA3473B0C139765DD762FC19FA83490FC981274337AB42E9",
+      "length": 128,
+      "source": "GPO"
+    }
+  ]
+}
