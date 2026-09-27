@@ -14,7 +14,7 @@ TODAY = 2609  # YYMM, pinned so the committed outputs don't change every month
 
 LIMB_BITS = 120
 BARRETT_OVERFLOW_BITS = 6  # bignum's BARRETT_REDUCTION_OVERFLOW_BITS
-MAX_STATIC_DATA_LEN = 256  # mc_dda's MAX_STATIC_DATA_LEN
+MAX_STATIC_DATA_LEN = 256  # mastercard_dda's MAX_STATIC_DATA_LEN
 
 Inputs = dict[str, Any]
 

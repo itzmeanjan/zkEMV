@@ -164,7 +164,7 @@ KINDS: dict[str, Kind] = {
         "aip": "2000",
         "static_record": None,
     },
-    "mc_dda": {
+    "mastercard_dda": {
         "aid": "A0000000041010",
         "issuer_bits": 1920,
         "icc_bits": 1152,
