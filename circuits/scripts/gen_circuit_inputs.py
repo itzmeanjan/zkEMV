@@ -70,7 +70,7 @@ def circuit_inputs(pkg: str, capks: vc.CAKeys) -> Inputs:
 
     t = doc["terminal"]
     un, amount, currency = (bytes(t[k]) for k in ("unpredictableNumber", "amountAuthorised", "currencyCode"))
-    td = un + amount + currency + h("9F69") if pkg == "visa_fdda" else un
+    td = un + amount + currency + h("9F69") if pkg == "visa_fast_dda" else un
     sd, _ = vc.verify_sdad(h("9F4B"), icc["modulus"], icc["exponent"], [("", td)])
     if not sd or not sd["matched"]:
         fail(pkg, "signed dynamic data")
@@ -88,7 +88,7 @@ def circuit_inputs(pkg: str, capks: vc.CAKeys) -> Inputs:
         "icc_exponent": h("9F47")[0],
         "sdad": list(h("9F4B")),
     }
-    if pkg == "visa_fdda":
+    if pkg == "visa_fast_dda":
         x.update(amount=list(amount), currency=list(currency), card_auth_data=list(h("9F69")))
     else:
         assert len(static) <= MAX_STATIC_DATA_LEN

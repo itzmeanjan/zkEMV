@@ -1,6 +1,6 @@
 {
   "synthetic": true,
-  "notes": "Synthetic visa_fdda tap from scripts/gen_synthetic.py (seed 2609). Test CA key, fake PAN; no real card data.",
+  "notes": "Synthetic visa_fast_dda tap from scripts/gen_synthetic.py (seed 2609). Test CA key, fake PAN; no real card data.",
   "selectedAid": "A0000000031010",
   "aip": "2000",
   "afl": [
