@@ -8,8 +8,9 @@ import hashlib
 import json
 import os
 import random
+from typing import Any, Callable, TypedDict
 
-import verify_chain as vc
+import verify_emv_reference as vc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(os.path.dirname(HERE), "fixtures")
@@ -36,7 +37,7 @@ def luhn(digits: str) -> str:
 class RsaKey:
     """RSA with public exponent 3, signing ISO 9796-2 scheme 1 blocks as EMV Book 2 does."""
 
-    def __init__(self, n: int, d: int, bits: int):
+    def __init__(self, n: int, d: int, bits: int) -> None:
         self.n, self.d, self.bits = n, d, bits
 
     @classmethod
@@ -92,14 +93,14 @@ class RsaKey:
         return s.to_bytes(self.bits // 8, "big")
 
 
-def split_key(modulus: bytes, space: int):
+def split_key(modulus: bytes, space: int) -> tuple[bytes, bytes]:
     if len(modulus) > space:
         return modulus[:space], modulus[space:]
     return modulus + b"\xBB" * (space - len(modulus)), b""
 
 
 def certificate(signer: RsaKey, fmt: int, owner_id: bytes, modulus: bytes, serial: bytes,
-                static: bytes = b""):
+                static: bytes = b"") -> tuple[bytes, bytes]:
     """Book 2 tables 6 (issuer) and 14 (ICC)."""
     head = (bytes([fmt]) + owner_id + CERT_EXPIRY_MMYY + serial
             + bytes([HASH_SHA1, PK_RSA, len(modulus), 1]))
@@ -108,7 +109,7 @@ def certificate(signer: RsaKey, fmt: int, owner_id: bytes, modulus: bytes, seria
     return cert, remainder
 
 
-def sdad(icc: RsaKey, fmt: int, dynamic: bytes, terminal_data: bytes):
+def sdad(icc: RsaKey, fmt: int, dynamic: bytes, terminal_data: bytes) -> bytes:
     """Book 2 table 17."""
     body = bytes([fmt, HASH_SHA1, len(dynamic)]) + dynamic
     body += b"\xBB" * (icc.bits // 8 - ENVELOPE_LEN - len(body))
@@ -121,7 +122,7 @@ def tlv(tag: str, value: bytes) -> bytes:
     return bytes.fromhex(tag) + length + value
 
 
-def mc_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random):
+def mc_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random) -> bytes:
     """The ODA record, in the tag order and lengths of the Mastercard corpus card.
     Values are synthetic; the circuit hashes this record but never parses it."""
     fields = [
@@ -144,8 +145,19 @@ def mc_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random):
     return value
 
 
+class Kind(TypedDict):
+    aid: str
+    issuer_bits: int
+    icc_bits: int
+    pan: str
+    sdad_format: int
+    sdad_source: str
+    aip: str
+    static_record: Callable[[bytes, bytes, random.Random], bytes] | None
+
+
 # Card kinds, as measured on real taps.
-KINDS = {
+KINDS: dict[str, Kind] = {
     "visa_fdda": {
         "aid": "A0000000031010",
         "issuer_bits": 1408,
@@ -170,11 +182,11 @@ KINDS = {
 }
 
 
-def element(tag, value: bytes, source):
+def element(tag: str, value: bytes, source: str) -> dict[str, Any]:
     return {"tag": tag, "value": value.hex().upper(), "length": len(value), "source": source}
 
 
-def synthesize(pkg: str, kind: dict, ca: RsaKey, rng: random.Random):
+def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str, Any]:
     issuer = RsaKey.generate(kind["issuer_bits"], rng)
     icc = RsaKey.generate(kind["icc_bits"], rng)
 
@@ -187,7 +199,8 @@ def synthesize(pkg: str, kind: dict, ca: RsaKey, rng: random.Random):
     cert90, rem92 = certificate(ca, vc.FMT_ISSUER, issuer_id, issuer.modulus(),
                                 rng.randbytes(3))
 
-    exchanges, afl = [], [{"sfi": 1, "first": 1, "last": 1, "odaRecords": 0}]
+    exchanges: list[dict[str, Any]] = []
+    afl = [{"sfi": 1, "first": 1, "last": 1, "odaRecords": 0}]
     static = b""
     if kind["static_record"]:
         record = kind["static_record"](pan_bcd8, aip, rng)
@@ -253,7 +266,7 @@ def synthesize(pkg: str, kind: dict, ca: RsaKey, rng: random.Random):
     }
 
 
-def main():
+def main() -> None:
     # One seeded rng feeds every key, serial and nonce, including the Miller-Rabin
     # witnesses: reordering any draw changes all output after it.
     rng = random.Random(SEED)
@@ -262,7 +275,7 @@ def main():
     exponent = f"{EXPONENT:02X}"
     os.makedirs(FIXTURES, exist_ok=True)
 
-    keys = []
+    keys: list[dict[str, Any]] = []
     for pkg, kind in KINDS.items():
         doc = synthesize(pkg, kind, ca, rng)
         open(os.path.join(FIXTURES, pkg + ".json"), "w").write(json.dumps(doc, indent=2) + "\n")
