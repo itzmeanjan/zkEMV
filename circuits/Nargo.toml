@@ -1,0 +1,2 @@
+[workspace]
+members = ["emv", "visa_fdda", "mc_dda"]
