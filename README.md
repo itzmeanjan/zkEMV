@@ -68,6 +68,11 @@ Proves and verifies each circuit's synthetic card tap data.
 | Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fast_dda` | 817 ms | 50.3 ms | 637.8 KiB |
 | Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 1.11 s | 63.0 ms | 657.8 KiB |
 
+## License
+
+Licensed under either of Apache License 2.0 (`LICENSE-APACHE`) or MIT license (`LICENSE-MIT`), at your option.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this work, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+
 ## References
 
 [^emv]: EMV. Wikipedia. <https://en.wikipedia.org/wiki/EMV>
@@ -88,4 +93,3 @@ Proves and verifies each circuit's synthetic card tap data.
 [^black]: Black, the Python code formatter. <https://github.com/psf/black>
 [^mypy]: mypy, a static type checker for Python. <https://mypy-lang.org>
 [^cargo-criterion]: cargo-criterion. <https://github.com/bheisler/cargo-criterion>
-[^criterion]: Criterion.rs, a statistics-driven benchmarking library. <https://github.com/criterion-rs/criterion.rs>

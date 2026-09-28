@@ -3,6 +3,7 @@ name = "emv"
 type = "lib"
 authors = ["Anjan Roy <hello@itzmeanjan.in>"]
 compiler_version = ">=1.0.0"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 bignum = { tag = "v0.10.0-2", git = "https://github.com/zkpassport/noir-bignum" }
