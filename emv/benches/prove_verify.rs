@@ -15,9 +15,9 @@ fn prove_verify(c: &mut Criterion) {
         vk.verify(&statement, &proof).unwrap();
 
         println!(
-            "{}: proof is {} bytes",
+            "{}: proof is {:.1} KiB",
             common::package(scheme),
-            proof.to_bytes().unwrap().len()
+            proof.to_bytes().unwrap().len() as f64 / 1024.0
         );
 
         let mut group = c.benchmark_group(common::package(scheme));
