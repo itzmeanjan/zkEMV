@@ -1,0 +1,91 @@
+# zkEMV
+
+Zero-knowledge proof (ZKP) of a genuine EMV contactless card signing a verifier challenge
+
+## Introduction
+
+A contactless EMV[^emv] card authenticates itself to a payment terminal with an RSA[^rsa] certificate chain (offline data authentication[^emv-book2]).
+zkEMV proves that chain in zero knowledge[^zkp], so a verifier learns that a genuine card signed its nonce (challenge) without learning the card data.
+The circuits are written in Noir[^noir] and proved with ProveKit[^provekit].
+
+```mermaid
+flowchart LR
+    ca["Scheme CA public key<br/>(per scheme, held by verifier)"] -- signs --> issuer["Issuer PK Certificate (90)<br/>(per issuer, stored on card)"]
+    issuer -- "issuer key signs" --> icc["ICC PK Certificate (9F46)<br/>(per card, stored on card)"]
+    icc -- "ICC key signs" --> sdad["Signed Dynamic Application Data (9F4B)<br/>(per tap, from card)"]
+    nonce["Verifier nonce (9F37)"] -- "covered by" --> sdad
+```
+
+Codes in parentheses are EMV tags[^emv-tags].
+Each arrow is an RSA signature with public exponent 3 and ISO/IEC 9796-2[^iso9796-2] message recovery: cubing the signature modulo the signer's key yields the signed data itself (for a certificate, the next public key) together with a SHA-1[^sha1] hash that the circuit recomputes and compares.
+For each signature the circuit checks the header, trailer, format, algorithm indicators, key length, exponent and embedded hash; for each certificate it also rebuilds the next key.
+Across the chain, it checks that the issuer identifier matches the PAN[^pan] prefix and that neither certificate has expired.
+
+- **Public inputs:** CA modulus, nonce `9F37`, current month (YYMM); for Visa, also amount `9F02` and currency `5F2A`.
+- **Private inputs:** the card's certificates, signature and related data.
+- **Not checked:** CA key expiry and revocation, issuer certificate revocation, contents of the signed static data.
+
+| Circuit | Scheme | Key widths in bits (CA / issuer / ICC) | Dynamic signature covers |
+| --- | --- | --- | --- |
+| `visa_fast_dda` | Visa fDDA | 1984 / 1408 / 1024 | `9F37 ‖ 9F02 ‖ 5F2A ‖ 9F69`[^9f69] |
+| `mastercard_dda` | Mastercard DDA | 1984 / 1920 / 1152 | `9F37` |
+
+## Prerequisites
+
+| Tool | Version | Needed for |
+| --- | --- | --- |
+| GNU Make[^make] | any | The recipes below |
+| Nargo[^nargo] | 1.0.0-beta.26 | Compiling and testing the circuits |
+| Rust[^rustup] | 1.98.0, minimum 1.90 | The `emv` crate; rustup installs the version pinned in `emv/rust-toolchain.toml` |
+| Python[^python] | 3.14 | Regenerating fixtures and circuit inputs |
+| black[^black], mypy[^mypy] | As in `requirements.txt` | Linting and formatting Python sources |
+| cargo-criterion[^cargo-criterion] | 1.1.0 | Benchmarking Rust library crate |
+
+## Tests
+
+```bash
+make test-circuits   # Noir circuit tests
+make test-e2e        # compiles the circuits, then proves and verifies each synthetic card tap data
+```
+
+Generated files are committed. To regenerate them:
+
+```bash
+python3 circuits/scripts/gen_synthetic.py       # rewrites circuits/fixtures/ (deterministic)
+python3 circuits/scripts/gen_circuit_inputs.py  # verifies each fixture natively, writes each circuit's Prover.toml and src/tests/vectors.nr
+```
+
+## Benchmarks
+
+```bash
+make bench
+```
+
+Proves and verifies each circuit's synthetic card tap data.
+
+| Environment | Circuit | Prove | Verify | Proof size |
+| --- | --- | --- | --- | --- |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fast_dda` | 817 ms | 50.3 ms | 637.8 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 1.11 s | 63.0 ms | 657.8 KiB |
+
+## References
+
+[^emv]: EMV. Wikipedia. <https://en.wikipedia.org/wiki/EMV>
+[^rsa]: RSA cryptosystem. Wikipedia. <https://en.wikipedia.org/wiki/RSA_cryptosystem>
+[^emv-book2]: EMV Book 2: Security and Key Management. EMVCo. <https://www.emvco.com/specifications/book-2-security-and-key-management/>
+[^zkp]: Zero-knowledge proof. Wikipedia. <https://en.wikipedia.org/wiki/Zero-knowledge_proof>
+[^noir]: Noir. <https://noir-lang.org>
+[^provekit]: ProveKit. <https://docs.provekit.org/>
+[^emv-tags]: Complete list of EMV & NFC tags. EFTlab. <https://www.eftlab.com/knowledge-base/complete-list-of-emv-nfc-tags>
+[^iso9796-2]: ISO/IEC 9796-2:2010, Digital signature schemes giving message recovery, Part 2: Integer factorization based mechanisms. <https://www.iso.org/standard/54788.html>
+[^sha1]: SHA-1. Wikipedia. <https://en.wikipedia.org/wiki/SHA-1>
+[^pan]: Payment card number. Wikipedia. <https://en.wikipedia.org/wiki/Payment_card_number>
+[^9f69]: `9F69`, Card Authentication Related Data: fDDA version number, card unpredictable number and card transaction qualifiers. EMV Book C-3: Kernel 3 Specification. EMVCo. <https://www.emvco.com/specifications/book-c-3-kernel-3-specification/>
+[^make]: GNU Make. <https://www.gnu.org/software/make/>
+[^nargo]: Nargo, the Noir toolchain. <https://noir-lang.org/docs>
+[^rustup]: rustup, the Rust toolchain installer. <https://rustup.rs>
+[^python]: Python. <https://www.python.org>
+[^black]: Black, the Python code formatter. <https://github.com/psf/black>
+[^mypy]: mypy, a static type checker for Python. <https://mypy-lang.org>
+[^cargo-criterion]: cargo-criterion. <https://github.com/bheisler/cargo-criterion>
+[^criterion]: Criterion.rs, a statistics-driven benchmarking library. <https://github.com/criterion-rs/criterion.rs>
