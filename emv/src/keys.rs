@@ -132,10 +132,7 @@ impl VerifyingKey {
     /// - [`Error::StatementMismatch`]: the proof is for different public inputs.
     /// - [`Error::ProveKit`]: the proof is invalid.
     pub fn verify(&self, statement: &Statement, proof: &Proof) -> Result<()> {
-        let expected = public_inputs(
-            &self.verifier.abi,
-            &public_input_map(self.scheme, statement)?,
-        )?;
+        let expected = public_inputs(&self.verifier.abi, &public_input_map(self.scheme, statement)?)?;
         if proof.0.public_inputs.0 != expected {
             return Err(Error::StatementMismatch);
         }
@@ -211,9 +208,7 @@ fn provekit<T>(f: impl FnOnce() -> anyhow::Result<T>) -> Result<T> {
                 .map(ToString::to_string)
                 .or_else(|| payload.downcast_ref::<String>().cloned())
                 .unwrap_or_default();
-            Err(Error::ProveKit(anyhow::anyhow!(
-                "ProveKit panicked: {message}"
-            )))
+            Err(Error::ProveKit(anyhow::anyhow!("ProveKit panicked: {message}")))
         }
     }
 }

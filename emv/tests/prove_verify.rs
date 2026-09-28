@@ -43,19 +43,13 @@ fn proof(scheme: Scheme) -> &'static Proof {
 #[test]
 fn visa_proves_and_verifies() {
     let (statement, _) = tap(Scheme::VisaFastDda);
-    keys(Scheme::VisaFastDda)
-        .1
-        .verify(&statement, proof(Scheme::VisaFastDda))
-        .unwrap();
+    keys(Scheme::VisaFastDda).1.verify(&statement, proof(Scheme::VisaFastDda)).unwrap();
 }
 
 #[test]
 fn mastercard_proves_and_verifies() {
     let (statement, _) = tap(Scheme::MastercardDda);
-    keys(Scheme::MastercardDda)
-        .1
-        .verify(&statement, proof(Scheme::MastercardDda))
-        .unwrap();
+    keys(Scheme::MastercardDda).1.verify(&statement, proof(Scheme::MastercardDda)).unwrap();
 }
 
 #[test]
@@ -63,10 +57,7 @@ fn other_nonce_is_rejected() {
     for scheme in [Scheme::VisaFastDda, Scheme::MastercardDda] {
         let (mut statement, _) = tap(scheme);
         statement.nonce[0] ^= 1;
-        assert!(matches!(
-            keys(scheme).1.verify(&statement, proof(scheme)),
-            Err(Error::StatementMismatch)
-        ));
+        assert!(matches!(keys(scheme).1.verify(&statement, proof(scheme)), Err(Error::StatementMismatch)));
     }
 }
 
@@ -75,9 +66,7 @@ fn other_ca_key_is_rejected() {
     let (mut statement, _) = tap(Scheme::MastercardDda);
     statement.ca_modulus[100] ^= 1;
     assert!(matches!(
-        keys(Scheme::MastercardDda)
-            .1
-            .verify(&statement, proof(Scheme::MastercardDda)),
+        keys(Scheme::MastercardDda).1.verify(&statement, proof(Scheme::MastercardDda)),
         Err(Error::StatementMismatch)
     ));
 }
@@ -91,9 +80,7 @@ fn other_amount_or_date_is_rejected() {
     today.today += 1;
     for s in [amount, today] {
         assert!(matches!(
-            keys(Scheme::VisaFastDda)
-                .1
-                .verify(&s, proof(Scheme::VisaFastDda)),
+            keys(Scheme::VisaFastDda).1.verify(&s, proof(Scheme::VisaFastDda)),
             Err(Error::StatementMismatch)
         ));
     }
@@ -102,12 +89,7 @@ fn other_amount_or_date_is_rejected() {
 #[test]
 fn proof_is_rejected_by_other_schemes_key() {
     let (statement, _) = tap(Scheme::VisaFastDda);
-    assert!(
-        keys(Scheme::MastercardDda)
-            .1
-            .verify(&statement, proof(Scheme::VisaFastDda))
-            .is_err()
-    );
+    assert!(keys(Scheme::MastercardDda).1.verify(&statement, proof(Scheme::VisaFastDda)).is_err());
 }
 
 /// Rewriting the public inputs a proof carries, to match another statement, must break
@@ -116,72 +98,48 @@ fn proof_is_rejected_by_other_schemes_key() {
 fn forged_public_inputs_are_rejected() {
     let (mut statement, _) = tap(Scheme::MastercardDda);
     let nonce_at = 17;
-    let mut forged: NoirProof =
-        file::deserialize(&proof(Scheme::MastercardDda).to_bytes().unwrap()).unwrap();
+    let mut forged: NoirProof = file::deserialize(&proof(Scheme::MastercardDda).to_bytes().unwrap()).unwrap();
     statement.nonce[0] ^= 1;
     forged.public_inputs.0[nonce_at] = FieldElement::from(statement.nonce[0]);
     let forged = Proof::from_bytes(&file::serialize(&forged).unwrap()).unwrap();
 
-    let err = keys(Scheme::MastercardDda)
-        .1
-        .verify(&statement, &forged)
-        .unwrap_err();
+    let err = keys(Scheme::MastercardDda).1.verify(&statement, &forged).unwrap_err();
     assert!(matches!(err, Error::ProveKit(_)), "{err}");
 }
 
 #[test]
 fn card_of_other_scheme_is_refused() {
     let (statement, card) = tap(Scheme::MastercardDda);
-    let err = keys(Scheme::VisaFastDda)
-        .0
-        .prove(&statement, &card)
-        .unwrap_err();
+    let err = keys(Scheme::VisaFastDda).0.prove(&statement, &card).unwrap_err();
     assert!(matches!(err, Error::SchemeMismatch { .. }));
 }
 
 #[test]
 fn tampered_card_cannot_be_proved() {
     let (statement, mut card) = tap(Scheme::VisaFastDda);
-    let Card::VisaFastDda(c) = &mut card else {
-        unreachable!()
-    };
+    let Card::VisaFastDda(c) = &mut card else { unreachable!() };
     c.sdad[64] ^= 1;
-    assert!(
-        keys(Scheme::VisaFastDda)
-            .0
-            .prove(&statement, &card)
-            .is_err()
-    );
+    assert!(keys(Scheme::VisaFastDda).0.prove(&statement, &card).is_err());
 }
 
 #[test]
 fn transaction_must_match_scheme() {
     let (mut statement, card) = tap(Scheme::VisaFastDda);
     statement.transaction = None;
-    assert!(matches!(
-        keys(Scheme::VisaFastDda).0.prove(&statement, &card),
-        Err(Error::Statement(_))
-    ));
+    assert!(matches!(keys(Scheme::VisaFastDda).0.prove(&statement, &card), Err(Error::Statement(_))));
 }
 
 #[test]
 fn zero_ca_modulus_is_an_error() {
     let (mut statement, card) = tap(Scheme::MastercardDda);
     statement.ca_modulus = vec![0; statement.ca_modulus.len()];
-    let err = keys(Scheme::MastercardDda)
-        .0
-        .prove(&statement, &card)
-        .unwrap_err();
+    let err = keys(Scheme::MastercardDda).0.prove(&statement, &card).unwrap_err();
     assert!(matches!(err, Error::Card(_)), "{err}");
 }
 
 #[test]
 fn malformed_bytes_are_errors() {
-    for bytes in [
-        &[][..],
-        &[0; 64][..],
-        &proof(Scheme::VisaFastDda).to_bytes().unwrap()[..100],
-    ] {
+    for bytes in [&[][..], &[0; 64][..], &proof(Scheme::VisaFastDda).to_bytes().unwrap()[..100]] {
         assert!(ProvingKey::from_bytes(bytes).is_err());
         assert!(VerifyingKey::from_bytes(bytes).is_err());
         assert!(Proof::from_bytes(bytes).is_err());
@@ -191,9 +149,7 @@ fn malformed_bytes_are_errors() {
 #[test]
 fn wrong_length_card_fields_are_errors() {
     let (statement, card) = tap(Scheme::MastercardDda);
-    let Card::MastercardDda(c) = card else {
-        unreachable!()
-    };
+    let Card::MastercardDda(c) = card else { unreachable!() };
     let mutations: [fn(&mut MastercardDda); 5] = [
         |c| c.issuer_cert.truncate(10),
         |c| c.icc_cert.clear(),
@@ -204,11 +160,6 @@ fn wrong_length_card_fields_are_errors() {
     for mutate in mutations {
         let mut c = c.clone();
         mutate(&mut c);
-        assert!(
-            keys(Scheme::MastercardDda)
-                .0
-                .prove(&statement, &Card::MastercardDda(c))
-                .is_err()
-        );
+        assert!(keys(Scheme::MastercardDda).0.prove(&statement, &Card::MastercardDda(c)).is_err());
     }
 }

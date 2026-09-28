@@ -13,8 +13,7 @@ pub(crate) fn package(scheme: Scheme) -> &'static str {
 
 pub(crate) fn compiled(scheme: Scheme) -> Vec<u8> {
     let path = format!("{CIRCUITS}/target/{}.json", package(scheme));
-    std::fs::read(&path)
-        .unwrap_or_else(|e| panic!("{path}: {e}; run `nargo compile --workspace` in circuits/"))
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}; run `nargo compile --workspace` in circuits/"))
 }
 
 fn read_json(path: &str) -> Value {
@@ -26,23 +25,14 @@ fn unhex(v: &Value) -> Vec<u8> {
 }
 
 fn byte_array<const N: usize>(v: &Value) -> [u8; N] {
-    let bytes: Vec<u8> = v
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| u8::try_from(b.as_u64().unwrap()).unwrap())
-        .collect();
+    let bytes: Vec<u8> = v.as_array().unwrap().iter().map(|b| u8::try_from(b.as_u64().unwrap()).unwrap()).collect();
     bytes.try_into().unwrap()
 }
 
 pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
     let doc = read_json(&format!("{CIRCUITS}/fixtures/{}.json", package(scheme)));
     let tag = |t: &str| -> Vec<u8> {
-        let el = doc["elements"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|e| e["tag"] == t);
+        let el = doc["elements"].as_array().unwrap().iter().find(|e| e["tag"] == t);
         unhex(&el.unwrap_or_else(|| panic!("no tag {t}"))["value"])
     };
 

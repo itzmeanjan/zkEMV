@@ -79,12 +79,7 @@ impl Scheme {
         let names = abi.parameter_names();
         [Self::VisaFastDda, Self::MastercardDda]
             .into_iter()
-            .find(|s| {
-                names
-                    .iter()
-                    .map(|n| n.as_str())
-                    .eq(s.parameters().iter().copied())
-            })
+            .find(|s| names.iter().map(|n| n.as_str()).eq(s.parameters().iter().copied()))
             .ok_or_else(|| Error::UnknownCircuit(names.into_iter().cloned().collect()))
     }
 }
