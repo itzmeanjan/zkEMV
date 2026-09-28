@@ -1445,6 +1445,7 @@ dependencies = [
  "const-hex",
  "criterion",
  "num-bigint 0.5.1",
+ "num-integer",
  "num-traits",
  "provekit-common",
  "provekit-prover",

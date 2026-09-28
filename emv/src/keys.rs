@@ -50,6 +50,8 @@ pub struct ProvingKey {
 }
 
 impl ProvingKey {
+    /// The scheme this key proves.
+    #[must_use]
     pub fn scheme(&self) -> Scheme {
         self.scheme
     }
@@ -110,6 +112,8 @@ pub struct VerifyingKey {
 }
 
 impl VerifyingKey {
+    /// The scheme this key verifies.
+    #[must_use]
     pub fn scheme(&self) -> Scheme {
         self.scheme
     }
@@ -204,7 +208,7 @@ fn provekit<T>(f: impl FnOnce() -> anyhow::Result<T>) -> Result<T> {
         Err(payload) => {
             let message = payload
                 .downcast_ref::<&str>()
-                .map(|m| m.to_string())
+                .map(ToString::to_string)
                 .or_else(|| payload.downcast_ref::<String>().cloned())
                 .unwrap_or_default();
             Err(Error::ProveKit(anyhow::anyhow!(

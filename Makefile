@@ -36,6 +36,7 @@ venv: $(VENV_STAMP) ## Creates the Python venv from requirements.txt, if missing
 .PHONY: lint
 lint: $(VENV_STAMP) ## Type-checks the Python scripts, lints the emv crate, and checks its API docs
 	$(VENV_BIN)/mypy
+	! grep -rnE '#!?\[(allow|expect)\(' $(EMV_DIR)/src $(EMV_DIR)/tests $(EMV_DIR)/benches
 	cd $(EMV_DIR) && cargo clippy --all-targets -- -D warnings
 	cd $(EMV_DIR) && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 

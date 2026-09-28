@@ -2,17 +2,18 @@ use std::collections::BTreeMap;
 
 use noirc_abi::{Abi, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
-use num_traits::CheckedDiv;
+use num_integer::Integer;
+use num_traits::{CheckedDiv, pow};
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
 use crate::{Card, Error, Result, Scheme, Statement};
 
 const LIMB_BITS: usize = 120;
-const LIMB_MASK: u128 = u128::MAX >> (128 - LIMB_BITS);
+const LIMB_BASE: u128 = 1 << LIMB_BITS;
 /// noir-bignum's `BARRETT_REDUCTION_OVERFLOW_BITS`.
 const BARRETT_OVERFLOW_BITS: usize = 6;
-/// mastercard_dda's `MAX_STATIC_DATA_LEN`.
-const MAX_STATIC_DATA_LEN: usize = 256;
+/// `mastercard_dda`'s `MAX_STATIC_DATA_LEN`.
+const MAX_STATIC_DATA_LEN: u16 = 256;
 /// SHA-1 hash and the `BC` trailer that end every recovered EMV certificate.
 const CERT_TAIL_LEN: usize = 21;
 
@@ -90,16 +91,17 @@ pub(crate) fn input_map(scheme: Scheme, statement: &Statement, card: &Card) -> R
             ("card_auth_data".to_owned(), bytes(&c.card_auth_data)),
         ]),
         Card::MastercardDda(c) => {
-            if c.static_data.len() > MAX_STATIC_DATA_LEN {
-                return Err(Error::Card(
+            let len = u16::try_from(c.static_data.len())
+                .ok()
+                .filter(|&len| len <= MAX_STATIC_DATA_LEN)
+                .ok_or(Error::Card(
                     "static data exceeds the circuit's 256-byte bound",
-                ));
-            }
+                ))?;
             let mut storage = c.static_data.clone();
-            storage.resize(MAX_STATIC_DATA_LEN, 0);
+            storage.resize(MAX_STATIC_DATA_LEN.into(), 0);
             let static_data = InputValue::Struct(BTreeMap::from([
                 ("storage".to_owned(), bytes(&storage)),
-                ("len".to_owned(), field(c.static_data.len() as u128)),
+                ("len".to_owned(), field(len.into())),
             ]));
             map.extend([
                 ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
@@ -221,41 +223,32 @@ fn next_key(
 /// 120-bit little-endian limbs; the top limb absorbs any excess, as a Barrett hint can.
 fn limbs(n: &BigUint, bits: usize) -> Result<Vec<u128>> {
     let too_wide = |_| Error::Card("modulus is wider than the circuit's");
-    let mask = BigUint::from(LIMB_MASK);
+    let base = BigUint::from(LIMB_BASE);
     let mut rest = n.clone();
     let mut out = Vec::new();
     for _ in 1..bits.div_ceil(LIMB_BITS) {
-        out.push(u128::try_from(&rest & &mask).map_err(too_wide)?);
-        rest = shr(&rest, LIMB_BITS);
+        let (quotient, limb) = rest.div_rem(&base);
+        out.push(u128::try_from(limb).map_err(too_wide)?);
+        rest = quotient;
     }
     out.push(u128::try_from(rest).map_err(too_wide)?);
     Ok(out)
 }
 
 /// A width that is a multiple of 120 bits is held modulo 2n in the circuit
-/// (`emv::DoubledKey`), so its hint is for 2n at one bit wider.
+/// (`emv::DoubledKey`), so its hint is for 2n at one bit wider:
+/// floor(2^s / 2n) = floor(2^(s-1) / n).
 fn redc(modulus: &BigUint, bits: usize) -> Result<Vec<u128>> {
-    let (modulus, bits) = if bits.is_multiple_of(LIMB_BITS) {
-        (shl(modulus, 1), bits.saturating_add(1))
-    } else {
-        (modulus.clone(), bits)
-    };
-    let shift = bits.saturating_mul(2).saturating_add(BARRETT_OVERFLOW_BITS);
-    let quotient = shl(&BigUint::from(1u8), shift)
-        .checked_div(&modulus)
+    let doubled = bits.is_multiple_of(LIMB_BITS);
+    let bits = bits.saturating_add(doubled.into());
+    let shift = bits
+        .saturating_mul(2)
+        .saturating_add(BARRETT_OVERFLOW_BITS)
+        .saturating_sub(doubled.into());
+    let quotient = pow(BigUint::from(2u8), shift)
+        .checked_div(modulus)
         .ok_or(Error::Card("modulus is zero"))?;
     limbs(&quotient, bits)
-}
-
-/// `BigUint` shifts can't overflow or panic.
-#[allow(clippy::arithmetic_side_effects)]
-fn shl(n: &BigUint, bits: usize) -> BigUint {
-    n << bits
-}
-
-#[allow(clippy::arithmetic_side_effects)]
-fn shr(n: &BigUint, bits: usize) -> BigUint {
-    n >> bits
 }
 
 fn expect_len(field: &'static str, bytes: &[u8], expected: usize) -> Result<()> {

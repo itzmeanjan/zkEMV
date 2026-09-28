@@ -4,14 +4,14 @@ use serde_json::Value;
 const CIRCUITS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits");
 const TODAY: u16 = 2609;
 
-pub fn package(scheme: Scheme) -> &'static str {
+pub(crate) fn package(scheme: Scheme) -> &'static str {
     match scheme {
         Scheme::VisaFastDda => "visa_fast_dda",
         Scheme::MastercardDda => "mastercard_dda",
     }
 }
 
-pub fn compiled(scheme: Scheme) -> Vec<u8> {
+pub(crate) fn compiled(scheme: Scheme) -> Vec<u8> {
     let path = format!("{CIRCUITS}/target/{}.json", package(scheme));
     std::fs::read(&path)
         .unwrap_or_else(|e| panic!("{path}: {e}; run `nargo compile --workspace` in circuits/"))
@@ -30,12 +30,12 @@ fn byte_array<const N: usize>(v: &Value) -> [u8; N] {
         .as_array()
         .unwrap()
         .iter()
-        .map(|b| b.as_u64().unwrap() as u8)
+        .map(|b| u8::try_from(b.as_u64().unwrap()).unwrap())
         .collect();
     bytes.try_into().unwrap()
 }
 
-pub fn tap(scheme: Scheme) -> (Statement, Card) {
+pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
     let doc = read_json(&format!("{CIRCUITS}/fixtures/{}.json", package(scheme)));
     let tag = |t: &str| -> Vec<u8> {
         let el = doc["elements"]
@@ -109,8 +109,8 @@ fn static_data(doc: &Value, tag_list: &[u8], aip: &[u8]) -> Vec<u8> {
             let record = &response[..response.len() - 2];
             assert_eq!(record[0], 0x70);
             let (len, at) = match record[1] {
-                0x81 => (record[2] as usize, 3),
-                len if len < 0x80 => (len as usize, 2),
+                0x81 => (usize::from(record[2]), 3),
+                len if len < 0x80 => (usize::from(len), 2),
                 _ => unimplemented!("record length form"),
             };
             out.extend(&record[at..at + len]);

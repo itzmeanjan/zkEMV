@@ -31,10 +31,13 @@ pub struct Transaction {
 /// tag and length.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Card {
+    /// For [`Scheme::VisaFastDda`].
     VisaFastDda(VisaFastDda),
+    /// For [`Scheme::MastercardDda`].
     MastercardDda(MastercardDda),
 }
 
+/// Card data for [`Scheme::VisaFastDda`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VisaFastDda {
     /// `90`, from READ RECORD. 248 bytes.
@@ -51,6 +54,7 @@ pub struct VisaFastDda {
     pub card_auth_data: Vec<u8>,
 }
 
+/// Card data for [`Scheme::MastercardDda`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MastercardDda {
     /// `90`, from READ RECORD. 248 bytes.
@@ -72,6 +76,8 @@ pub struct MastercardDda {
 }
 
 impl Card {
+    /// The scheme whose circuit proves this card.
+    #[must_use]
     pub fn scheme(&self) -> Scheme {
         match self {
             Self::VisaFastDda(_) => Scheme::VisaFastDda,

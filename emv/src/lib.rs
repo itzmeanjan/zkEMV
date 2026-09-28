@@ -46,7 +46,8 @@
 //! }
 //! ```
 
-#![deny(
+#![forbid(
+    missing_docs,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -54,7 +55,12 @@
     clippy::todo,
     clippy::unimplemented,
     clippy::indexing_slicing,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::unwrap_in_result,
+    clippy::panic_in_result_fn,
+    clippy::string_slice,
+    clippy::print_stdout,
+    clippy::print_stderr
 )]
 
 mod card;

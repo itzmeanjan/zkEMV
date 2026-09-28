@@ -15,11 +15,13 @@ pub enum Scheme {
 
 impl Scheme {
     /// CA modulus length in bits.
+    #[must_use]
     pub const fn ca_bits(self) -> usize {
         1984
     }
 
     /// Issuer modulus length in bits. Cards with another length can't be proved.
+    #[must_use]
     pub const fn issuer_bits(self) -> usize {
         match self {
             Self::VisaFastDda => 1408,
@@ -28,6 +30,7 @@ impl Scheme {
     }
 
     /// ICC modulus length in bits. Cards with another length can't be proved.
+    #[must_use]
     pub const fn icc_bits(self) -> usize {
         match self {
             Self::VisaFastDda => 1024,

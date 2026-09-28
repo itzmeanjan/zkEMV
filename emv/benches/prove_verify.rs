@@ -17,7 +17,7 @@ fn prove_verify(c: &mut Criterion) {
         println!(
             "{}: proof is {:.1} KiB",
             common::package(scheme),
-            proof.to_bytes().unwrap().len() as f64 / 1024.0
+            f64::from(u32::try_from(proof.to_bytes().unwrap().len()).unwrap()) / 1024.0
         );
 
         let mut group = c.benchmark_group(common::package(scheme));
@@ -28,7 +28,7 @@ fn prove_verify(c: &mut Criterion) {
 
         group.measurement_time(Duration::from_secs(5));
         group.bench_function("verify", |b| {
-            b.iter(|| vk.verify(&statement, &proof).unwrap())
+            b.iter(|| vk.verify(&statement, &proof).unwrap());
         });
 
         group.finish();

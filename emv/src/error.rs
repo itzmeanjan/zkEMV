@@ -1,18 +1,28 @@
 use crate::Scheme;
 
+/// Result of this crate's functions.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Error of this crate's functions.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The card is for a different scheme than the key.
     #[error("{key:?} key used with {data:?} data")]
-    SchemeMismatch { key: Scheme, data: Scheme },
+    SchemeMismatch {
+        /// The key's scheme.
+        key: Scheme,
+        /// The card's scheme.
+        data: Scheme,
+    },
 
     /// A byte field has the wrong length for the scheme.
     #[error("{field} must be {expected} bytes, got {actual}")]
     Length {
+        /// Field name.
         field: &'static str,
+        /// Required length in bytes.
         expected: usize,
+        /// Given length in bytes.
         actual: usize,
     },
 
