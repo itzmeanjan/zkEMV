@@ -34,8 +34,14 @@ $(VENV_STAMP): requirements.txt
 venv: $(VENV_STAMP) ## Creates the Python venv from requirements.txt, if missing or outdated
 
 .PHONY: lint
-lint: $(VENV_STAMP) ## Type-checks the Python scripts, lints the emv crate, and checks its API docs
+lint: lint-python lint-rust ## Runs all lints to preserve quality of code
+
+.PHONY: lint-python
+lint-python: $(VENV_STAMP) ## Type-checks the Python scripts
 	$(VENV_BIN)/mypy
+
+.PHONY: lint-rust
+lint-rust: ## Lints the emv crate and checks its API docs
 	! grep -rnE '#!?\[(allow|expect)\(' $(EMV_DIR)/src $(EMV_DIR)/tests $(EMV_DIR)/benches
 	cd $(EMV_DIR) && cargo clippy --all-targets -- -D warnings
 	cd $(EMV_DIR) && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
@@ -47,9 +53,18 @@ format: $(VENV_STAMP) ## Formats the Python scripts, the Noir circuits and the e
 	cd $(EMV_DIR) && cargo fmt
 
 .PHONY: format-check
-format-check: $(VENV_STAMP) ## Fails if any Python, Noir or Rust source is not formatted
+format-check: format-check-python format-check-noir format-check-rust ## Runs source format checks
+
+.PHONY: format-check-python
+format-check-python: $(VENV_STAMP) ## Fails if any Python script is not formatted
 	$(VENV_BIN)/black --check $(PY_SCRIPTS)
+
+.PHONY: format-check-noir
+format-check-noir: ## Fails if any Noir circuit is not formatted
 	cd $(CIRCUITS_DIR) && nargo fmt --check
+
+.PHONY: format-check-rust
+format-check-rust: ## Fails if the emv crate is not formatted
 	cd $(EMV_DIR) && cargo fmt --check
 
 .PHONY: clean
