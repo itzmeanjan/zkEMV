@@ -20,6 +20,11 @@ test-e2e: ## Compiles the circuits, then proves and verifies the synthetic taps 
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(EMV_DIR) && cargo test --release
 
+.PHONY: bench
+bench: ## Compiles the circuits, then benchmarks prove and verify of the synthetic taps with cargo-criterion
+	cd $(CIRCUITS_DIR) && nargo compile --workspace
+	cd $(EMV_DIR) && cargo criterion
+
 $(VENV_STAMP): requirements.txt
 	python3 -m venv $(VENV)
 	$(VENV_BIN)/pip install -r requirements.txt

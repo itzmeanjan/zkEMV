@@ -1,146 +1,29 @@
 use std::sync::OnceLock;
 
-use emv::{
-    Card, Error, MastercardDda, Proof, ProvingKey, Scheme, Statement, Transaction, VerifyingKey,
-    VisaFastDda, prepare,
-};
+use emv::{Card, Error, MastercardDda, Proof, ProvingKey, Scheme, VerifyingKey, prepare};
 use provekit_common::{FieldElement, NoirProof, file};
-use serde_json::Value;
 
-const CIRCUITS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits");
-const TODAY: u16 = 2609;
-
-fn package(scheme: Scheme) -> &'static str {
-    match scheme {
-        Scheme::VisaFastDda => "visa_fast_dda",
-        Scheme::MastercardDda => "mastercard_dda",
-    }
-}
-
-fn read_json(path: &str) -> Value {
-    serde_json::from_slice(&std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
-}
-
-fn unhex(v: &Value) -> Vec<u8> {
-    const_hex::decode(v.as_str().unwrap()).unwrap()
-}
-
-fn byte_array<const N: usize>(v: &Value) -> [u8; N] {
-    let bytes: Vec<u8> = v
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b.as_u64().unwrap() as u8)
-        .collect();
-    bytes.try_into().unwrap()
-}
+mod common;
+use common::tap;
 
 /// Keys go through a bytes round trip, so every test also covers key serialization.
 fn keys(scheme: Scheme) -> &'static (ProvingKey, VerifyingKey) {
     static VISA: OnceLock<(ProvingKey, VerifyingKey)> = OnceLock::new();
     static MASTERCARD: OnceLock<(ProvingKey, VerifyingKey)> = OnceLock::new();
+
     let cell = match scheme {
         Scheme::VisaFastDda => &VISA,
         Scheme::MastercardDda => &MASTERCARD,
     };
     cell.get_or_init(|| {
-        let path = format!("{CIRCUITS}/target/{}.json", package(scheme));
-        let compiled = std::fs::read(&path).unwrap_or_else(|e| {
-            panic!("{path}: {e}; run `nargo compile --workspace` in circuits/")
-        });
-        let (pk, vk) = prepare(&compiled).unwrap();
+        let (pk, vk) = prepare(&common::compiled(scheme)).unwrap();
+
         let pk = ProvingKey::from_bytes(&pk.to_bytes().unwrap()).unwrap();
         let vk = VerifyingKey::from_bytes(&vk.to_bytes().unwrap()).unwrap();
+
         assert_eq!((pk.scheme(), vk.scheme()), (scheme, scheme));
         (pk, vk)
     })
-}
-
-fn tap(scheme: Scheme) -> (Statement, Card) {
-    let doc = read_json(&format!("{CIRCUITS}/fixtures/{}.json", package(scheme)));
-    let tag = |t: &str| -> Vec<u8> {
-        let el = doc["elements"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|e| e["tag"] == t);
-        unhex(&el.unwrap_or_else(|| panic!("no tag {t}"))["value"])
-    };
-
-    let rid = &doc["selectedAid"].as_str().unwrap()[..10];
-    let index = const_hex::encode_upper(tag("8F"));
-    let ca_keys = read_json(&format!("{CIRCUITS}/fixtures/test-ca-keys.json"));
-    let ca = ca_keys["keys"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|k| k["rid"] == rid && k["index"] == index.as_str())
-        .unwrap();
-
-    let terminal = &doc["terminal"];
-    let statement = Statement {
-        ca_modulus: unhex(&ca["modulus"]),
-        nonce: byte_array(&terminal["unpredictableNumber"]),
-        today: TODAY,
-        transaction: (scheme == Scheme::VisaFastDda).then(|| Transaction {
-            amount: byte_array(&terminal["amountAuthorised"]),
-            currency: byte_array(&terminal["currencyCode"]),
-        }),
-    };
-    let card = match scheme {
-        Scheme::VisaFastDda => Card::VisaFastDda(VisaFastDda {
-            issuer_cert: tag("90"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            sdad: tag("9F4B"),
-            card_auth_data: tag("9F69"),
-        }),
-        Scheme::MastercardDda => Card::MastercardDda(MastercardDda {
-            issuer_cert: tag("90"),
-            issuer_remainder: tag("92"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            static_data: static_data(&doc, &tag("9F4A"), &tag("82")),
-            sdad: tag("9F4B"),
-        }),
-    };
-    (statement, card)
-}
-
-/// `verify_emv_reference.static_data_to_authenticate`, for records shorter than 256 bytes.
-fn static_data(doc: &Value, tag_list: &[u8], aip: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
-    for entry in doc["afl"].as_array().unwrap() {
-        let (sfi, first, count) = (
-            entry["sfi"].as_u64().unwrap(),
-            entry["first"].as_u64().unwrap(),
-            entry["odaRecords"].as_u64().unwrap(),
-        );
-        for rec in first..first + count {
-            let label = format!("sfi={sfi} rec={rec}");
-            let exchange = doc["exchanges"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|e| e["label"].as_str().unwrap().contains(&label))
-                .unwrap();
-            let response = unhex(&exchange["response"]);
-            let record = &response[..response.len() - 2];
-            assert_eq!(record[0], 0x70);
-            let (len, at) = match record[1] {
-                0x81 => (record[2] as usize, 3),
-                len if len < 0x80 => (len as usize, 2),
-                _ => unimplemented!("record length form"),
-            };
-            out.extend(&record[at..at + len]);
-        }
-    }
-    if tag_list == [0x82] {
-        out.extend(aip);
-    }
-    out
 }
 
 fn proof(scheme: Scheme) -> &'static Proof {
