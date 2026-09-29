@@ -8,6 +8,7 @@
 //! bits) is split from parsing (`verify_*`).
 
 mod doubled;
+mod nullifier;
 mod policy;
 mod tests;
 
@@ -16,6 +17,8 @@ pub use bignum::params::BigNumParams;
 use bignum::RuntimeBigNum;
 
 pub use doubled::DoubledKey;
+
+pub use nullifier::nullifier;
 
 pub use policy::{assert_issuer_id_matches_pan, assert_not_expired};
 
