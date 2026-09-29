@@ -40,6 +40,7 @@ Across the chain, it checks that the issuer identifier matches the PAN[^pan] pre
 | Python[^python] | 3.14 | Regenerating fixtures and circuit inputs |
 | black[^black], mypy[^mypy] | As in `requirements.txt` | Linting and formatting Python sources |
 | cargo-criterion[^cargo-criterion] | 1.1.0 | Benchmarking Rust library crate |
+| Docker[^docker], adb[^adb] | any | Benchmarking on an arm64 Android device |
 
 ## Tests
 
@@ -59,14 +60,22 @@ python3 circuits/scripts/gen_circuit_inputs.py  # verifies each fixture natively
 
 ```bash
 make bench
+make bench-android
 ```
 
 Proves and verifies each circuit's synthetic card tap data.
+When benchmarking on an arm64 Android device, already connected over adb, it cross-compiles the benchmark binary with the Android NDK[^ndk] inside Docker (`Dockerfile.bench-android`).
+Keep the device's screen on for the whole run, with the screen off, Android throttles the CPU and the captured timings vary several-fold.
 
 | Environment | Circuit | Prove | Verify | Proof size |
 | --- | --- | --- | --- | --- |
-| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fdda` | 817 ms | 50.3 ms | 637.8 KiB |
-| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 1.11 s | 63.0 ms | 657.8 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fdda` | 1.28 s | 93.0 ms | 637.8 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 2.48 s | 113.5 ms | 657.8 KiB |
+| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `visa_fdda` | 3.25 s | 90.1 ms | 637.0 KiB |
+| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `mastercard_dda` | 6.02 s | 127 ms | 657.4 KiB |
+
+> [!INFO]
+> None of the devices were connected to direct power during the benchmark experiments.
 
 ## License
 
@@ -93,3 +102,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [^black]: Black, the Python code formatter. <https://github.com/psf/black>
 [^mypy]: mypy, a static type checker for Python. <https://mypy-lang.org>
 [^cargo-criterion]: cargo-criterion. <https://github.com/bheisler/cargo-criterion>
+[^docker]: Docker. <https://www.docker.com>
+[^ndk]: Android NDK. <https://developer.android.com/ndk>
+[^adb]: Android Debug Bridge. <https://developer.android.com/tools/adb>
