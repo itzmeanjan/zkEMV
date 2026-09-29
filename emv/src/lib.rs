@@ -7,18 +7,20 @@
 //! Challenge::visa_fdda / mastercard_dda
 //! keeps it, sends Challenge::to_bytes  ----->  Challenge::from_bytes
 //!                                              taps the card with the challenge's nonce
-//!                                              ProvingKey::prove(&challenge, ca, &card)
-//! VerifyingKey::verify(challenge, ca, &proof) <-----  Proof::to_bytes()
+//!                                              CaTable::lookup(&challenge, rid, 8F) -> ca
+//!                                              ProvingKey::prove(&challenge, &ca, &card)
+//! CaTable::lookup(&challenge, rid, 8F) -> ca  <-----  Proof::to_bytes(), rid, 8F
+//! VerifyingKey::verify(challenge, &ca, &proof)
 //! ```
 //!
 //! If [`VerifyingKey::verify`] succeeds, then, without revealing card data:
 //!
-//! - `ca` signed the issuer certificate, the issuer key signed the ICC certificate, and
+//! - the trusted CA key `ca` signed the issuer certificate, the issuer key signed the ICC certificate, and
 //!   the ICC key signed the challenge's nonce (for Visa, also the amount and currency);
 //! - neither certificate expired before the challenge's month;
 //! - the issuer identifier matches the start of the PAN.
 //!
-//! Not checked: CA key expiry and revocation, issuer certificate revocation. A proof doesn't
+//! Not checked: CA key and issuer certificate revocation. A proof doesn't
 //! identify the card, so one card can produce any number of accepted proofs.
 //!
 //! # Usage
@@ -27,10 +29,10 @@
 //!    verifying key to verifiers.
 //! 2. Verifier: issue a [`Challenge`] for the current month, keep it, and send its bytes.
 //! 3. Prover: tap the card with the challenge's nonce as `9F37` (for Visa, also its amount
-//!    and currency in the PDOL), then call [`ProvingKey::prove`]. Send the proof and the
-//!    card's RID and `8F`.
-//! 4. Verifier: get the CA modulus from its trusted table by that RID and `8F`, and call
-//!    [`VerifyingKey::verify`] with the issued challenge.
+//!    and currency in the PDOL), look up the CA key the card names, then call
+//!    [`ProvingKey::prove`]. Send the proof and the card's RID and `8F`.
+//! 4. Verifier: look up that RID and `8F` in its [`CaTable`] for the issued challenge, and
+//!    call [`VerifyingKey::verify`] with both. The table decides which CA keys are trusted.
 //!
 //! Disable debug assertions for dependencies; see [`Proof::to_bytes`].
 //!
@@ -38,7 +40,7 @@
 //! requires `panic = "unwind"` (Cargo's default).
 //!
 //! ```no_run
-//! use emv::{Card, Challenge, Issued, Proof, ProvingKey, VerifyingKey, YearMonth};
+//! use emv::{CaTable, Card, Challenge, Issued, Proof, ProvingKey, VerifyingKey, YearMonth};
 //!
 //! fn issue(today: YearMonth) -> emv::Result<(Challenge<Issued>, Vec<u8>)> {
 //!     let challenge = Challenge::mastercard_dda(today)?;
@@ -46,12 +48,15 @@
 //!     Ok((challenge, bytes))
 //! }
 //!
-//! fn prover(pk: &ProvingKey, challenge: &[u8], ca_modulus: &[u8], card: &Card) -> emv::Result<Vec<u8>> {
-//!     pk.prove(&Challenge::from_bytes(challenge)?, ca_modulus, card)?.to_bytes()
+//! fn prover(pk: &ProvingKey, table: &CaTable, challenge: &[u8], rid: [u8; 5], index: u8, card: &Card) -> emv::Result<Vec<u8>> {
+//!     let challenge = Challenge::from_bytes(challenge)?;
+//!     let ca = table.lookup(&challenge, rid, index)?;
+//!     pk.prove(&challenge, &ca, card)?.to_bytes()
 //! }
 //!
-//! fn verifier(vk: &VerifyingKey, challenge: Challenge<Issued>, ca_modulus: &[u8], proof: &[u8]) -> emv::Result<()> {
-//!     vk.verify(challenge, ca_modulus, &Proof::from_bytes(proof)?)
+//! fn verifier(vk: &VerifyingKey, table: &CaTable, challenge: Challenge<Issued>, rid: [u8; 5], index: u8, proof: &[u8]) -> emv::Result<()> {
+//!     let ca = table.lookup(&challenge, rid, index)?;
+//!     vk.verify(challenge, &ca, &Proof::from_bytes(proof)?)
 //! }
 //! ```
 
@@ -72,6 +77,7 @@
     clippy::print_stderr
 )]
 
+mod ca;
 mod card;
 mod challenge;
 mod error;
@@ -79,6 +85,7 @@ mod keys;
 mod scheme;
 mod witness;
 
+pub use ca::{CaKey, CaTable};
 pub use card::{Card, MastercardDda, VisaFdda};
 pub use challenge::{Challenge, Issued, Received, Transaction, YearMonth};
 pub use error::{Error, Result};

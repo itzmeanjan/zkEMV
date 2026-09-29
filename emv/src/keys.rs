@@ -10,7 +10,7 @@ use provekit_r1cs_compiler::NoirProofSchemeBuilder;
 use provekit_verifier::Verify;
 
 use crate::{
-    Card, Challenge, Error, Issued, Received, Result, Scheme,
+    CaKey, Card, Challenge, Error, Issued, Received, Result, Scheme,
     witness::{input_map, public_input_map, public_inputs},
 };
 
@@ -56,27 +56,28 @@ impl ProvingKey {
         self.scheme
     }
 
-    /// Proves that `card` signed `challenge`.
-    ///
-    /// `ca_modulus` is the CA RSA modulus, big-endian, 248 bytes, that the card names by
-    /// RID (first 5 bytes of the AID) and index `8F`.
+    /// Proves that `card` signed `challenge`, under `ca`: the key the card names, from
+    /// [`CaTable::lookup`](crate::CaTable::lookup).
     ///
     /// Blocking and CPU-bound. Runs on rayon's global thread pool. Clones the key.
     ///
     /// # Errors
     ///
     /// - [`Error::SchemeMismatch`]: `challenge` or `card` is for another scheme.
-    /// - [`Error::Length`]: `ca_modulus`, `issuer_cert` or `icc_cert` has the wrong length.
+    /// - [`Error::CaKey`]: `ca` is for another scheme, or expired before the challenge's
+    ///   month.
+    /// - [`Error::Length`]: `issuer_cert` or `icc_cert` has the wrong length.
     /// - [`Error::Card`]: a certificate doesn't recover to a key of the scheme's width, or
     ///   the static data is too long.
     /// - [`Error::ProveKit`]: the inputs fail a circuit constraint.
-    pub fn prove(&self, challenge: &Challenge<Received>, ca_modulus: &[u8], card: &Card) -> Result<Proof> {
+    pub fn prove(&self, challenge: &Challenge<Received>, ca: &CaKey, card: &Card) -> Result<Proof> {
         for data in [challenge.scheme(), card.scheme()] {
             if data != self.scheme {
                 return Err(Error::SchemeMismatch { key: self.scheme, data });
             }
         }
-        let inputs = input_map(challenge.fields(), ca_modulus, card)?;
+        ca.check(challenge.fields())?;
+        let inputs = input_map(challenge.fields(), ca.modulus(), card)?;
         provekit(|| self.prover.clone().prove(inputs)).map(Proof)
     }
 
@@ -117,28 +118,31 @@ impl VerifyingKey {
         self.scheme
     }
 
-    /// Verifies that `proof` answers `challenge` under `ca_modulus`. `Ok(())` means accept.
+    /// Verifies that `proof` answers `challenge` under `ca`. `Ok(())` means accept.
     ///
-    /// Consumes `challenge`, so it verifies at most one proof. Take `ca_modulus` from a
-    /// trusted table, by the RID and `8F` the prover sends.
+    /// Consumes `challenge`, so it verifies at most one proof. Get `ca` from
+    /// [`CaTable::lookup`](crate::CaTable::lookup) with the RID and `8F` the prover sends.
     ///
     /// ProveKit checks a proof only against the public inputs inside it, so this function
-    /// first compares them with `challenge` and `ca_modulus`.
+    /// first compares them with `challenge` and `ca`.
     ///
     /// # Errors
     ///
     /// - [`Error::SchemeMismatch`]: `challenge` is for another scheme.
-    /// - [`Error::Length`]: `ca_modulus` has the wrong length.
+    /// - [`Error::CaKey`]: `ca` is for another scheme, or expired before the challenge's
+    ///   month.
     /// - [`Error::PublicInputsMismatch`]: the proof is for another challenge or CA key.
     /// - [`Error::ProveKit`]: the proof is invalid.
-    pub fn verify(&self, challenge: Challenge<Issued>, ca_modulus: &[u8], proof: &Proof) -> Result<()> {
+    pub fn verify(&self, challenge: Challenge<Issued>, ca: &CaKey, proof: &Proof) -> Result<()> {
         if challenge.scheme() != self.scheme {
             return Err(Error::SchemeMismatch {
                 key: self.scheme,
                 data: challenge.scheme(),
             });
         }
-        let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge.into_fields(), ca_modulus)?)?;
+        let challenge = challenge.into_fields();
+        ca.check(&challenge)?;
+        let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge, ca.modulus())?)?;
         if proof.0.public_inputs.0 != expected {
             return Err(Error::PublicInputsMismatch);
         }

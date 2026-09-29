@@ -5,15 +5,22 @@ use crate::{Error, Result};
 /// A circuit package in this repository's `circuits/`. Each scheme has its own key pair and fixed key widths.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Scheme {
-    /// Visa (RID `A000000003`), fDDA. The GPO response signs the nonce, amount, currency
-    /// and `9F69`.
+    /// Visa, fDDA. The GPO response signs the nonce, amount, currency and `9F69`.
     VisaFdda,
-    /// Mastercard (RID `A000000004`), DDA. The INTERNAL AUTHENTICATE response signs the
-    /// nonce.
+    /// Mastercard, DDA. The INTERNAL AUTHENTICATE response signs the nonce.
     MastercardDda,
 }
 
 impl Scheme {
+    /// Registered Application Provider Identifier: the first 5 bytes of the scheme's AIDs.
+    #[must_use]
+    pub const fn rid(self) -> [u8; 5] {
+        match self {
+            Self::VisaFdda => [0xA0, 0x00, 0x00, 0x00, 0x03],
+            Self::MastercardDda => [0xA0, 0x00, 0x00, 0x00, 0x04],
+        }
+    }
+
     /// CA modulus length in bits.
     #[must_use]
     pub const fn ca_bits(self) -> usize {

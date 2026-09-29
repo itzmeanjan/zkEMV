@@ -1,4 +1,4 @@
-use emv::{Card, Challenge, Issued, MastercardDda, Received, Scheme, Transaction, VisaFdda, YearMonth};
+use emv::{CaKey, CaTable, Card, Challenge, Issued, MastercardDda, Received, Scheme, Transaction, VisaFdda, YearMonth};
 use num_bigint::BigUint;
 use serde_json::Value;
 use sha1::{Digest, Sha1};
@@ -51,8 +51,15 @@ fn unhex(v: &Value) -> Vec<u8> {
     const_hex::decode(v.as_str().unwrap()).unwrap()
 }
 
-/// The CA modulus and the synthetic tap's card data, as if tapped with `challenge`.
-pub(crate) fn tap(challenge: &Challenge<Received>) -> (Vec<u8>, Card) {
+/// The test CA key from `fixtures/test-ca-keys.json`. Its private key is public, via
+/// `gen_synthetic.py`'s seed, so only tests may trust it.
+pub(crate) fn test_ca_table() -> CaTable {
+    let path = format!("{}/fixtures/test-ca-keys.json", circuits());
+    CaTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
+}
+
+/// The CA key the synthetic tap names, and its card data, as if tapped with `challenge`.
+pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
     let scheme = challenge.scheme();
     let circuits = circuits();
     let doc = read_json(&format!("{circuits}/fixtures/{}.json", package(scheme)));
@@ -61,15 +68,8 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (Vec<u8>, Card) {
         unhex(&el.unwrap_or_else(|| panic!("no tag {t}"))["value"])
     };
 
-    let rid = &doc["selectedAid"].as_str().unwrap()[..10];
-    let index = const_hex::encode_upper(tag("8F"));
-    let ca_keys = read_json(&format!("{circuits}/fixtures/test-ca-keys.json"));
-    let ca = ca_keys["keys"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|k| k["rid"] == rid && k["index"] == index.as_str())
-        .unwrap();
+    let rid = unhex(&doc["selectedAid"])[..5].try_into().unwrap();
+    let ca = test_ca_table().lookup(challenge, rid, tag("8F")[0]).unwrap();
 
     let terminal_data = match challenge.transaction() {
         Some(t) => [&challenge.nonce()[..], &t.amount, &t.currency, &tag("9F69")].concat(),
@@ -95,7 +95,7 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (Vec<u8>, Card) {
             sdad,
         }),
     };
-    (unhex(&ca["modulus"]), card)
+    (ca, card)
 }
 
 /// `verify_emv_reference.static_data_to_authenticate`, for records shorter than 256 bytes.

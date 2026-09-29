@@ -48,6 +48,14 @@ pub enum Error {
     #[error("invalid card data: {0}")]
     Card(&'static str),
 
+    /// A CA key table is malformed, or a key's checksum doesn't match.
+    #[error("invalid CA key table: {0}")]
+    CaTable(&'static str),
+
+    /// No trusted CA key fits: unknown, of another scheme, width or exponent, or expired.
+    #[error("CA key: {0}")]
+    CaKey(&'static str),
+
     /// The proof is for another challenge or CA key.
     #[error("the proof's public inputs are not this challenge and CA key")]
     PublicInputsMismatch,

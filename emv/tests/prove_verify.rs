@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use emv::{Card, Challenge, Error, MastercardDda, Proof, ProvingKey, Received, Scheme, VerifyingKey, YearMonth, prepare};
+use emv::{CaTable, Card, Challenge, Error, MastercardDda, Proof, ProvingKey, Received, Scheme, VerifyingKey, YearMonth, prepare};
 use provekit_common::{FieldElement, NoirProof, file};
 
 mod common;
@@ -109,15 +109,49 @@ fn altered_challenge_is_rejected() {
     }
 }
 
+/// Real keys from `data/`, which the synthetic taps don't chain to.
+fn data_table() -> CaTable {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../data/certificate-authority-public-keys.json");
+    CaTable::from_json(&std::fs::read(path).unwrap()).unwrap()
+}
+
+/// The proof is under the test CA key; the verifier's table maps the card's RID and `8F`
+/// to Visa's real key `09` instead.
 #[test]
 fn other_ca_key_is_rejected() {
-    let issued = issue(Scheme::MastercardDda, today());
+    let issued = issue(Scheme::VisaFdda, today());
     let received = receive(&issued);
     let proof = prove(&received).unwrap();
-    let mut ca = tap(&received).0;
-    ca[100] ^= 1;
-    let err = keys(Scheme::MastercardDda).1.verify(issued, &ca, &proof).unwrap_err();
+    let visa_09 = data_table().lookup(&issued, Scheme::VisaFdda.rid(), 0x09).unwrap();
+    let err = keys(Scheme::VisaFdda).1.verify(issued, &visa_09, &proof).unwrap_err();
     assert!(matches!(err, Error::PublicInputsMismatch), "{err}");
+}
+
+/// `verify` re-checks the key against its own challenge, whatever challenge it was looked
+/// up for.
+#[test]
+fn ca_key_must_fit_the_verified_challenge() {
+    let (_, proof) = stale_proof(Scheme::MastercardDda);
+    let data = data_table();
+    let mastercard_06 = |today| data.lookup(&issue(Scheme::MastercardDda, today), Scheme::MastercardDda.rid(), 0x06).unwrap();
+    let visa_09 = data.lookup(&issue(Scheme::VisaFdda, today()), Scheme::VisaFdda.rid(), 0x09).unwrap();
+    let cases = [
+        (visa_09, today()),
+        // Mastercard `06` expires 2028-12-31 in `data/`.
+        (mastercard_06(YearMonth::new(2028, 12).unwrap()), YearMonth::new(2029, 1).unwrap()),
+    ];
+    for (ca, month) in cases {
+        let err = keys(Scheme::MastercardDda)
+            .1
+            .verify(issue(Scheme::MastercardDda, month), &ca, proof)
+            .unwrap_err();
+        assert!(matches!(err, Error::CaKey(_)), "{err}");
+
+        let challenge = receive(&issue(Scheme::MastercardDda, month));
+        let card = tap(&challenge).1;
+        let err = keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &card).unwrap_err();
+        assert!(matches!(err, Error::CaKey(_)), "{err}");
+    }
 }
 
 #[test]
@@ -173,14 +207,6 @@ fn tampered_card_cannot_be_proved() {
     let Card::VisaFdda(c) = &mut card else { unreachable!() };
     c.sdad[64] ^= 1;
     assert!(keys(Scheme::VisaFdda).0.prove(&challenge, &ca, &card).is_err());
-}
-
-#[test]
-fn zero_ca_modulus_is_an_error() {
-    let challenge = receive(&issue(Scheme::MastercardDda, today()));
-    let (ca, card) = tap(&challenge);
-    let err = keys(Scheme::MastercardDda).0.prove(&challenge, &vec![0; ca.len()], &card).unwrap_err();
-    assert!(matches!(err, Error::Card(_)), "{err}");
 }
 
 #[test]

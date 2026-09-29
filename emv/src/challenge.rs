@@ -77,8 +77,8 @@ pub enum Received {}
 /// An issued challenge verifies once:
 ///
 /// ```compile_fail,E0382
-/// # use emv::{Challenge, Issued, Proof, VerifyingKey};
-/// fn verify_twice(vk: &VerifyingKey, c: Challenge<Issued>, ca: &[u8], proof: &Proof) {
+/// # use emv::{CaKey, Challenge, Issued, Proof, VerifyingKey};
+/// fn verify_twice(vk: &VerifyingKey, c: Challenge<Issued>, ca: &CaKey, proof: &Proof) {
 ///     let _ = vk.verify(c, ca, proof);
 ///     let _ = vk.verify(c, ca, proof);
 /// }
@@ -94,8 +94,8 @@ pub enum Received {}
 /// A received challenge can't verify:
 ///
 /// ```compile_fail,E0308
-/// # use emv::{Challenge, Proof, Received, VerifyingKey};
-/// fn verify_received(vk: &VerifyingKey, c: Challenge<Received>, ca: &[u8], proof: &Proof) {
+/// # use emv::{CaKey, Challenge, Proof, Received, VerifyingKey};
+/// fn verify_received(vk: &VerifyingKey, c: Challenge<Received>, ca: &CaKey, proof: &Proof) {
 ///     let _ = vk.verify(c, ca, proof);
 /// }
 /// ```
