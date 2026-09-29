@@ -257,6 +257,8 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         "terminal": terminal,
         "exchanges": exchanges,
         "elements": elements,
+        # Lets a test re-sign 9F4B for a nonce of its choosing.
+        "testIccKey": {"modulus": icc.modulus().hex().upper(), "privateExponent": icc.d.to_bytes(icc.bits // 8, "big").hex().upper()},
     }
 
 

@@ -10,7 +10,7 @@ use provekit_r1cs_compiler::NoirProofSchemeBuilder;
 use provekit_verifier::Verify;
 
 use crate::{
-    Card, Error, Result, Scheme, Statement,
+    Card, Challenge, Error, Issued, Received, Result, Scheme,
     witness::{input_map, public_input_map, public_inputs},
 };
 
@@ -56,28 +56,27 @@ impl ProvingKey {
         self.scheme
     }
 
-    /// Proves that `card` signed the challenge in `statement`.
+    /// Proves that `card` signed `challenge`.
     ///
-    /// `statement` must equal the statement the verifier checks.
+    /// `ca_modulus` is the CA RSA modulus, big-endian, 248 bytes, that the card names by
+    /// RID (first 5 bytes of the AID) and index `8F`.
     ///
     /// Blocking and CPU-bound. Runs on rayon's global thread pool. Clones the key.
     ///
     /// # Errors
     ///
-    /// - [`Error::SchemeMismatch`]: `card` is for another scheme.
-    /// - [`Error::Statement`]: `statement.transaction` is wrong for the scheme.
+    /// - [`Error::SchemeMismatch`]: `challenge` or `card` is for another scheme.
     /// - [`Error::Length`]: `ca_modulus`, `issuer_cert` or `icc_cert` has the wrong length.
     /// - [`Error::Card`]: a certificate doesn't recover to a key of the scheme's width, or
     ///   the static data is too long.
     /// - [`Error::ProveKit`]: the inputs fail a circuit constraint.
-    pub fn prove(&self, statement: &Statement, card: &Card) -> Result<Proof> {
-        if card.scheme() != self.scheme {
-            return Err(Error::SchemeMismatch {
-                key: self.scheme,
-                data: card.scheme(),
-            });
+    pub fn prove(&self, challenge: &Challenge<Received>, ca_modulus: &[u8], card: &Card) -> Result<Proof> {
+        for data in [challenge.scheme(), card.scheme()] {
+            if data != self.scheme {
+                return Err(Error::SchemeMismatch { key: self.scheme, data });
+            }
         }
-        let inputs = input_map(self.scheme, statement, card)?;
+        let inputs = input_map(challenge.fields(), ca_modulus, card)?;
         provekit(|| self.prover.clone().prove(inputs)).map(Proof)
     }
 
@@ -118,23 +117,30 @@ impl VerifyingKey {
         self.scheme
     }
 
-    /// Verifies that `proof` proves `statement`. `Ok(())` means accept.
+    /// Verifies that `proof` answers `challenge` under `ca_modulus`. `Ok(())` means accept.
     ///
-    /// Build `statement` from the verifier's own values only: a fresh nonce, the current
-    /// month, the requested transaction, and a CA modulus from a trusted table.
+    /// Consumes `challenge`, so it verifies at most one proof. Take `ca_modulus` from a
+    /// trusted table, by the RID and `8F` the prover sends.
     ///
     /// ProveKit checks a proof only against the public inputs inside it, so this function
-    /// first compares them with `statement`.
+    /// first compares them with `challenge` and `ca_modulus`.
     ///
     /// # Errors
     ///
-    /// - [`Error::Statement`], [`Error::Length`]: `statement` is invalid for the scheme.
-    /// - [`Error::StatementMismatch`]: the proof is for different public inputs.
+    /// - [`Error::SchemeMismatch`]: `challenge` is for another scheme.
+    /// - [`Error::Length`]: `ca_modulus` has the wrong length.
+    /// - [`Error::PublicInputsMismatch`]: the proof is for another challenge or CA key.
     /// - [`Error::ProveKit`]: the proof is invalid.
-    pub fn verify(&self, statement: &Statement, proof: &Proof) -> Result<()> {
-        let expected = public_inputs(&self.verifier.abi, &public_input_map(self.scheme, statement)?)?;
+    pub fn verify(&self, challenge: Challenge<Issued>, ca_modulus: &[u8], proof: &Proof) -> Result<()> {
+        if challenge.scheme() != self.scheme {
+            return Err(Error::SchemeMismatch {
+                key: self.scheme,
+                data: challenge.scheme(),
+            });
+        }
+        let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge.into_fields(), ca_modulus)?)?;
         if proof.0.public_inputs.0 != expected {
-            return Err(Error::StatementMismatch);
+            return Err(Error::PublicInputsMismatch);
         }
         // A `Verifier` is consumed by one verification.
         provekit(|| self.verifier.clone().verify(&proof.0))

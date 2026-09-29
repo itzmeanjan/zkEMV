@@ -1,11 +1,35 @@
-use emv::{Card, MastercardDda, Scheme, Statement, Transaction, VisaFdda};
+use emv::{Card, Challenge, Issued, MastercardDda, Received, Scheme, Transaction, VisaFdda, YearMonth};
+use num_bigint::BigUint;
 use serde_json::Value;
+use sha1::{Digest, Sha1};
 
 /// `ZKEMV_CIRCUITS` overrides the build-time path, e.g. when the bench runs on another device.
 fn circuits() -> String {
     std::env::var("ZKEMV_CIRCUITS").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits").to_owned())
 }
-const TODAY: u16 = 2609;
+
+/// Zero USD, as a verifier asks when no money moves.
+const TRANSACTION: Transaction = Transaction {
+    amount: [0; 6],
+    currency: [0x08, 0x40],
+};
+
+pub(crate) fn today() -> YearMonth {
+    YearMonth::new(2026, 9).unwrap()
+}
+
+pub(crate) fn issue(scheme: Scheme, today: YearMonth) -> Challenge<Issued> {
+    match scheme {
+        Scheme::VisaFdda => Challenge::visa_fdda(today, TRANSACTION),
+        Scheme::MastercardDda => Challenge::mastercard_dda(today),
+    }
+    .unwrap()
+}
+
+/// The challenge as the prover reads it.
+pub(crate) fn receive(challenge: &Challenge<Issued>) -> Challenge<Received> {
+    Challenge::from_bytes(&challenge.to_bytes()).unwrap()
+}
 
 pub(crate) fn package(scheme: Scheme) -> &'static str {
     match scheme {
@@ -27,12 +51,9 @@ fn unhex(v: &Value) -> Vec<u8> {
     const_hex::decode(v.as_str().unwrap()).unwrap()
 }
 
-fn byte_array<const N: usize>(v: &Value) -> [u8; N] {
-    let bytes: Vec<u8> = v.as_array().unwrap().iter().map(|b| u8::try_from(b.as_u64().unwrap()).unwrap()).collect();
-    bytes.try_into().unwrap()
-}
-
-pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
+/// The CA modulus and the synthetic tap's card data, as if tapped with `challenge`.
+pub(crate) fn tap(challenge: &Challenge<Received>) -> (Vec<u8>, Card) {
+    let scheme = challenge.scheme();
     let circuits = circuits();
     let doc = read_json(&format!("{circuits}/fixtures/{}.json", package(scheme)));
     let tag = |t: &str| -> Vec<u8> {
@@ -50,23 +71,18 @@ pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
         .find(|k| k["rid"] == rid && k["index"] == index.as_str())
         .unwrap();
 
-    let terminal = &doc["terminal"];
-    let statement = Statement {
-        ca_modulus: unhex(&ca["modulus"]),
-        nonce: byte_array(&terminal["unpredictableNumber"]),
-        today: TODAY,
-        transaction: (scheme == Scheme::VisaFdda).then(|| Transaction {
-            amount: byte_array(&terminal["amountAuthorised"]),
-            currency: byte_array(&terminal["currencyCode"]),
-        }),
+    let terminal_data = match challenge.transaction() {
+        Some(t) => [&challenge.nonce()[..], &t.amount, &t.currency, &tag("9F69")].concat(),
+        None => challenge.nonce().to_vec(),
     };
+    let sdad = resign(&doc["testIccKey"], &tag("9F4B"), &terminal_data);
     let card = match scheme {
         Scheme::VisaFdda => Card::VisaFdda(VisaFdda {
             issuer_cert: tag("90"),
             issuer_exponent: tag("9F32")[0],
             icc_cert: tag("9F46"),
             icc_exponent: tag("9F47")[0],
-            sdad: tag("9F4B"),
+            sdad,
             card_auth_data: tag("9F69"),
         }),
         Scheme::MastercardDda => Card::MastercardDda(MastercardDda {
@@ -76,10 +92,10 @@ pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
             icc_cert: tag("9F46"),
             icc_exponent: tag("9F47")[0],
             static_data: static_data(&doc, &tag("9F4A"), &tag("82")),
-            sdad: tag("9F4B"),
+            sdad,
         }),
     };
-    (statement, card)
+    (unhex(&ca["modulus"]), card)
 }
 
 /// `verify_emv_reference.static_data_to_authenticate`, for records shorter than 256 bytes.
@@ -114,4 +130,21 @@ fn static_data(doc: &Value, tag_list: &[u8], aip: &[u8]) -> Vec<u8> {
         out.extend(aip);
     }
     out
+}
+
+/// Re-signs a Book 2 table 17 SDAD for other terminal data: keeps its recovered header and
+/// dynamic data, replaces its SHA-1.
+fn resign(icc_key: &Value, sdad: &[u8], terminal_data: &[u8]) -> Vec<u8> {
+    let n = BigUint::from_bytes_be(&unhex(&icc_key["modulus"]));
+    let d = BigUint::from_bytes_be(&unhex(&icc_key["privateExponent"]));
+    let mut m = be_bytes(&BigUint::from_bytes_be(sdad).modpow(&BigUint::from(3u8), &n), sdad.len());
+    let hash_at = m.len() - 21;
+    let digest = Sha1::new().chain_update(&m[1..hash_at]).chain_update(terminal_data).finalize();
+    m[hash_at..hash_at + 20].copy_from_slice(&digest);
+    be_bytes(&BigUint::from_bytes_be(&m).modpow(&d, &n), sdad.len())
+}
+
+fn be_bytes(n: &BigUint, len: usize) -> Vec<u8> {
+    let bytes = n.to_bytes_be();
+    [vec![0; len - bytes.len()], bytes].concat()
 }

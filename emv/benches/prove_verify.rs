@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use criterion::{Criterion, SamplingMode, criterion_group, criterion_main};
+use criterion::{BatchSize, Criterion, SamplingMode, criterion_group, criterion_main};
 use emv::{Scheme, prepare};
 
 #[path = "../tests/common/mod.rs"]
@@ -9,10 +9,12 @@ mod common;
 fn prove_verify(c: &mut Criterion) {
     for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
         let (pk, vk) = prepare(&common::compiled(scheme)).unwrap();
-        let (statement, card) = common::tap(scheme);
+        let issued = common::issue(scheme, common::today());
+        let received = common::receive(&issued);
+        let (ca, card) = common::tap(&received);
 
-        let proof = pk.prove(&statement, &card).unwrap();
-        vk.verify(&statement, &proof).unwrap();
+        let proof = pk.prove(&received, &ca, &card).unwrap();
+        vk.verify(issued, &ca, &proof).unwrap();
 
         println!(
             "{}: proof is {:.1} KiB",
@@ -24,11 +26,24 @@ fn prove_verify(c: &mut Criterion) {
         group.sample_size(10).sampling_mode(SamplingMode::Flat);
 
         group.measurement_time(Duration::from_secs(20));
-        group.bench_function("prove", |b| b.iter(|| pk.prove(&statement, &card).unwrap()));
+        group.bench_function("prove", |b| b.iter(|| pk.prove(&received, &ca, &card).unwrap()));
 
-        group.measurement_time(Duration::from_secs(5));
+        // Verifying consumes the issued challenge, so each iteration proves a fresh one
+        // first, untimed; the short times keep that setup to a few dozen proofs.
+        group.warm_up_time(Duration::from_millis(100));
+        group.measurement_time(Duration::from_secs(1));
         group.bench_function("verify", |b| {
-            b.iter(|| vk.verify(&statement, &proof).unwrap());
+            b.iter_batched(
+                || {
+                    let issued = common::issue(scheme, common::today());
+                    let received = common::receive(&issued);
+                    let (ca, card) = common::tap(&received);
+                    let proof = pk.prove(&received, &ca, &card).unwrap();
+                    (issued, ca, proof)
+                },
+                |(issued, ca, proof)| vk.verify(issued, &ca, &proof).unwrap(),
+                BatchSize::PerIteration,
+            );
         });
 
         group.finish();

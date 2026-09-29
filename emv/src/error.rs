@@ -6,14 +6,31 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Error of this crate's functions.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The card is for a different scheme than the key.
+    /// The card or challenge is for a different scheme than the key.
     #[error("{key:?} key used with {data:?} data")]
     SchemeMismatch {
         /// The key's scheme.
         key: Scheme,
-        /// The card's scheme.
+        /// The card's or challenge's scheme.
         data: Scheme,
     },
+
+    /// Not a month of the years 2000 to 2099.
+    #[error("{year}-{month:02} is not a month of the years 2000 to 2099")]
+    YearMonth {
+        /// The given year.
+        year: u16,
+        /// The given month.
+        month: u8,
+    },
+
+    /// The bytes are not a challenge from [`Challenge::to_bytes`](crate::Challenge::to_bytes).
+    #[error("malformed challenge: {0}")]
+    Challenge(&'static str),
+
+    /// The OS random number generator failed to draw a nonce.
+    #[error("OS random number generator failed")]
+    Rng(#[source] Box<dyn std::error::Error + Send + Sync>),
 
     /// A byte field has the wrong length for the scheme.
     #[error("{field} must be {expected} bytes, got {actual}")]
@@ -31,13 +48,9 @@ pub enum Error {
     #[error("invalid card data: {0}")]
     Card(&'static str),
 
-    /// The transaction is missing for Visa or present for Mastercard.
-    #[error("invalid statement: {0}")]
-    Statement(&'static str),
-
-    /// The proof is for different public inputs than the statement.
-    #[error("the proof's public inputs are not this statement")]
-    StatementMismatch,
+    /// The proof is for another challenge or CA key.
+    #[error("the proof's public inputs are not this challenge and CA key")]
+    PublicInputsMismatch,
 
     /// The circuit or key is not for any [`Scheme`].
     #[error("not an emv circuit, its parameters are {0:?}")]

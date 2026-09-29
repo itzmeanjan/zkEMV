@@ -6,7 +6,7 @@ use num_integer::Integer;
 use num_traits::{CheckedDiv, pow};
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
-use crate::{Card, Error, Result, Scheme, Statement};
+use crate::{Card, Error, Result, Scheme, challenge::Fields};
 
 const LIMB_BITS: usize = 120;
 const LIMB_BASE: u128 = 1 << LIMB_BITS;
@@ -17,40 +17,33 @@ const MAX_STATIC_DATA_LEN: u16 = 256;
 /// SHA-1 hash and the `BC` trailer that end every recovered EMV certificate.
 const CERT_TAIL_LEN: usize = 21;
 
-pub(crate) fn public_input_map(scheme: Scheme, statement: &Statement) -> Result<InputMap> {
-    expect_len("ca_modulus", &statement.ca_modulus, scheme.ca_bits() / 8)?;
-    let ca = BigUint::from_bytes_be(&statement.ca_modulus);
+pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8]) -> Result<InputMap> {
+    let scheme = challenge.scheme;
+    expect_len("ca_modulus", ca_modulus, scheme.ca_bits() / 8)?;
+    let ca = BigUint::from_bytes_be(ca_modulus);
 
     let mut map = InputMap::from([
         ("ca_modulus".to_owned(), limbs_value(limbs(&ca, scheme.ca_bits())?)),
-        ("nonce".to_owned(), bytes(&statement.nonce)),
-        ("today".to_owned(), field(statement.today.into())),
+        ("nonce".to_owned(), bytes(&challenge.nonce)),
+        ("today".to_owned(), field(challenge.today.yymm().into())),
     ]);
-    match (scheme, statement.transaction) {
-        (Scheme::VisaFdda, Some(t)) => {
-            map.insert("amount".to_owned(), bytes(&t.amount));
-            map.insert("currency".to_owned(), bytes(&t.currency));
-        }
-        (Scheme::MastercardDda, None) => {}
-        (Scheme::VisaFdda, None) => {
-            return Err(Error::Statement("Visa fDDA signs the amount and currency; transaction is required"));
-        }
-        (Scheme::MastercardDda, Some(_)) => {
-            return Err(Error::Statement("Mastercard DDA signs no transaction; transaction must be None"));
-        }
+    if let Some(t) = challenge.transaction {
+        map.insert("amount".to_owned(), bytes(&t.amount));
+        map.insert("currency".to_owned(), bytes(&t.currency));
     }
     Ok(map)
 }
 
-pub(crate) fn input_map(scheme: Scheme, statement: &Statement, card: &Card) -> Result<InputMap> {
-    let mut map = public_input_map(scheme, statement)?;
+pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], card: &Card) -> Result<InputMap> {
+    let scheme = challenge.scheme;
+    let mut map = public_input_map(challenge, ca_modulus)?;
     let (issuer_cert, issuer_remainder, icc_cert) = match card {
         Card::VisaFdda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
         Card::MastercardDda(c) => (&c.issuer_cert, &c.issuer_remainder[..], &c.icc_cert),
     };
-    let (issuer, icc) = chain_moduli(scheme, &statement.ca_modulus, issuer_cert, issuer_remainder, icc_cert)?;
+    let (issuer, icc) = chain_moduli(scheme, ca_modulus, issuer_cert, issuer_remainder, icc_cert)?;
 
-    let ca = BigUint::from_bytes_be(&statement.ca_modulus);
+    let ca = BigUint::from_bytes_be(ca_modulus);
     map.extend([
         ("ca_redc".to_owned(), limbs_value(redc(&ca, scheme.ca_bits())?)),
         ("issuer_redc".to_owned(), limbs_value(redc(&issuer, scheme.issuer_bits())?)),
