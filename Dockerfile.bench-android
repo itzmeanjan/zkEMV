@@ -1,0 +1,34 @@
+# check=skip=FromPlatformFlagConstDisallowed
+# Cross-compiles the zkEMV benchmark binary for arm64 Android and exports it:
+#   docker build -f Dockerfile.bench-android --output <dir> .
+# The Linux NDK ships only x86_64 host tools, so the build stages are pinned to linux/amd64.
+# Other hosts run them under emulation: Rosetta or QEMU with Docker Desktop, QEMU binfmt on Linux.
+
+ARG RUST_IMAGE=rust:1.98.0-slim-trixie@sha256:17d1ba895198f9934c6314ec5346a0d5115372f3243390c3d731e242f35c2f27
+
+FROM --platform=linux/amd64 ${RUST_IMAGE} AS ndk
+ADD --checksum=sha256:59c2f6dc96743b5daf5d1626684640b20a6bd2b1d85b13156b90333741bad5cc https://dl.google.com/android/repository/android-ndk-r27c-linux.zip /tmp/ndk.zip
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && unzip -q /tmp/ndk.zip -d /opt
+
+FROM --platform=linux/amd64 ${RUST_IMAGE} AS build
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ARG ANDROID_API=35
+COPY --from=ndk /opt/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64 /opt/ndk
+ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=/opt/ndk/bin/aarch64-linux-android${ANDROID_API}-clang \
+    CC_aarch64_linux_android=/opt/ndk/bin/aarch64-linux-android${ANDROID_API}-clang \
+    AR_aarch64_linux_android=/opt/ndk/bin/llvm-ar
+WORKDIR /emv
+# Installs the toolchain rust-toolchain.toml pins, if the image lacks it, with its components.
+COPY emv/rust-toolchain.toml ./
+RUN rustup target add aarch64-linux-android
+COPY emv/Cargo.toml emv/Cargo.lock ./
+COPY emv/src src
+COPY emv/benches benches
+COPY emv/tests tests
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/emv/target \
+    cargo bench --locked --target aarch64-linux-android --bench prove_verify --no-run --message-format=json \
+    | grep -o '"executable":"[^"]*"' | cut -d '"' -f 4 | xargs -I{} cp {} /prove_verify
+
+FROM scratch
+COPY --from=build /prove_verify /
