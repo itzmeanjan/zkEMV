@@ -1,7 +1,10 @@
 use emv::{Card, MastercardDda, Scheme, Statement, Transaction, VisaFdda};
 use serde_json::Value;
 
-const CIRCUITS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits");
+/// `ZKEMV_CIRCUITS` overrides the build-time path, e.g. when the bench runs on another device.
+fn circuits() -> String {
+    std::env::var("ZKEMV_CIRCUITS").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits").to_owned())
+}
 const TODAY: u16 = 2609;
 
 pub(crate) fn package(scheme: Scheme) -> &'static str {
@@ -12,7 +15,7 @@ pub(crate) fn package(scheme: Scheme) -> &'static str {
 }
 
 pub(crate) fn compiled(scheme: Scheme) -> Vec<u8> {
-    let path = format!("{CIRCUITS}/target/{}.json", package(scheme));
+    let path = format!("{}/target/{}.json", circuits(), package(scheme));
     std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}; run `nargo compile --workspace` in circuits/"))
 }
 
@@ -30,7 +33,8 @@ fn byte_array<const N: usize>(v: &Value) -> [u8; N] {
 }
 
 pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
-    let doc = read_json(&format!("{CIRCUITS}/fixtures/{}.json", package(scheme)));
+    let circuits = circuits();
+    let doc = read_json(&format!("{circuits}/fixtures/{}.json", package(scheme)));
     let tag = |t: &str| -> Vec<u8> {
         let el = doc["elements"].as_array().unwrap().iter().find(|e| e["tag"] == t);
         unhex(&el.unwrap_or_else(|| panic!("no tag {t}"))["value"])
@@ -38,7 +42,7 @@ pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
 
     let rid = &doc["selectedAid"].as_str().unwrap()[..10];
     let index = const_hex::encode_upper(tag("8F"));
-    let ca_keys = read_json(&format!("{CIRCUITS}/fixtures/test-ca-keys.json"));
+    let ca_keys = read_json(&format!("{circuits}/fixtures/test-ca-keys.json"));
     let ca = ca_keys["keys"]
         .as_array()
         .unwrap()
