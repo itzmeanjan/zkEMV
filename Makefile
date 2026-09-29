@@ -51,11 +51,15 @@ $(VENV_STAMP): requirements.txt
 venv: $(VENV_STAMP) ## Creates the Python venv from requirements.txt, if missing or outdated
 
 .PHONY: lint
-lint: lint-python lint-rust ## Runs all lints to preserve quality of code
+lint: lint-python lint-noir lint-rust ## Runs all lints to preserve quality of code
 
 .PHONY: lint-python
 lint-python: $(VENV_STAMP) ## Type-checks the Python scripts
 	$(VENV_BIN)/mypy
+
+.PHONY: lint-noir
+lint-noir: ## Fails on any Noir compiler warning, under-constrained value checks included
+	cd $(CIRCUITS_DIR) && nargo check --workspace --deny-warnings
 
 .PHONY: lint-rust
 lint-rust: ## Lints the emv crate and checks its API docs
