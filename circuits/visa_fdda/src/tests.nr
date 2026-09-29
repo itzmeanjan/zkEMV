@@ -4,88 +4,101 @@
 mod vectors;
 
 use crate::verify;
-use vectors::CARDS;
+use emv::nullifier;
+use vectors::{CARDS, ICC_MODULUS};
 
 #[test]
 fn every_card_verifies() {
     for i in 0..CARDS.len() {
-        verify(CARDS[i]);
+        let _ = verify(CARDS[i]);
     }
+}
+
+#[test]
+fn nullifier_is_of_the_certified_icc_key() {
+    assert_eq(verify(CARDS[0]), nullifier(ICC_MODULUS, CARDS[0].scope));
+}
+
+#[test]
+fn nullifier_changes_with_scope() {
+    let mut x = CARDS[0];
+    x.scope += 1;
+    assert(verify(x) != verify(CARDS[0]));
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn wrong_nonce_fails() {
     let mut x = CARDS[0];
     x.nonce[3] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn wrong_amount_fails() {
     let mut x = CARDS[0];
     x.amount[5] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn wrong_currency_fails() {
     let mut x = CARDS[0];
     x.currency[1] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn wrong_card_auth_data_fails() {
     let mut x = CARDS[0];
     x.card_auth_data[1] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail)]
 fn tampered_dynamic_signature_fails() {
     let mut x = CARDS[0];
     x.sdad[64] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail)]
 fn tampered_icc_certificate_fails() {
     let mut x = CARDS[0];
     x.icc_cert[64] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail)]
 fn tampered_issuer_certificate_fails() {
     let mut x = CARDS[0];
     x.issuer_cert[64] ^= 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail)]
 fn wrong_ca_key_fails() {
     let mut x = CARDS[0];
     x.ca_modulus[0] ^= 2;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "issuer exponent must be 3")]
 fn wrong_issuer_exponent_fails() {
     let mut x = CARDS[0];
     x.issuer_exponent = 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "ICC exponent must be 3")]
 fn wrong_icc_exponent_fails() {
     let mut x = CARDS[0];
     x.icc_exponent = 1;
-    verify(x);
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "certificate expired")]
 fn expired_fails() {
     let mut x = CARDS[0];
     x.today = 5001;
-    verify(x);
+    let _ = verify(x);
 }

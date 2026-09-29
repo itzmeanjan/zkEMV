@@ -12,3 +12,4 @@ amount = [0, 0, 0, 0, 0, 0]
 currency = [8, 64]
 card_auth_data = [1, 252, 241, 142, 17, 0, 0]
 today = 2609
+scope = 376990

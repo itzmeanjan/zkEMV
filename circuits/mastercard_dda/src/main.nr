@@ -3,7 +3,7 @@
 mod tests;
 
 use emv::{
-    assert_issuer_id_matches_pan, assert_not_expired, BigNumParams, DoubledKey, FMT_SDAD_DDA, key_from_be_bytes, rsa_recover, verify_icc_cert,
+    assert_issuer_id_matches_pan, assert_not_expired, BigNumParams, DoubledKey, FMT_SDAD_DDA, key_from_be_bytes, nullifier, rsa_recover, verify_icc_cert,
     verify_issuer_cert, verify_sdad,
 };
 
@@ -26,6 +26,7 @@ pub struct Inputs {
     pub ca_modulus: [u128; CA_N],
     pub nonce: [u8; 4],
     pub today: u32,
+    pub scope: Field,
     pub ca_redc: [u128; CA_N],
     pub issuer_redc: [u128; ISSUER_N],
     pub icc_redc: [u128; ICC_N],
@@ -45,6 +46,8 @@ fn main(
     nonce: pub [u8; 4],
     // YYMM
     today: pub u32,
+    // Chosen by the verifier, or at random by the prover when the verifier needs no nullifier.
+    scope: pub Field,
     // Barrett hints; they affect witness generation only.
     ca_redc: [u128; CA_N],
     issuer_redc: [u128; ISSUER_N],
@@ -56,12 +59,13 @@ fn main(
     icc_exponent: u8, // 9F47
     static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>, // AFL-flagged records || AIP
     sdad: [u8; ICC_BITS / 8], // 9F4B
-) {
+) -> pub Field {
     verify(
         Inputs {
             ca_modulus,
             nonce,
             today,
+            scope,
             ca_redc,
             issuer_redc,
             icc_redc,
@@ -73,10 +77,10 @@ fn main(
             static_data,
             sdad,
         },
-    );
+    )
 }
 
-fn verify(x: Inputs) {
+fn verify(x: Inputs) -> Field {
     let ca_key: BigNumParams<CA_N, CA_BITS> = BigNumParams::new(false, x.ca_modulus, x.ca_redc);
 
     let issuer = verify_issuer_cert::<_, ISSUER_BITS / 8, _>(
@@ -99,4 +103,6 @@ fn verify(x: Inputs) {
     assert_not_expired(icc.expiry, x.today);
 
     verify_sdad(rsa_recover(icc_key, x.sdad), FMT_SDAD_DDA, x.nonce);
+
+    nullifier(icc.modulus, x.scope)
 }

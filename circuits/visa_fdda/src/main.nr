@@ -3,8 +3,8 @@
 mod tests;
 
 use emv::{
-    assert_issuer_id_matches_pan, assert_not_expired, BigNumParams, FMT_SDAD_FDDA, key_from_be_bytes, rsa_recover, verify_icc_cert, verify_issuer_cert,
-    verify_sdad,
+    assert_issuer_id_matches_pan, assert_not_expired, BigNumParams, FMT_SDAD_FDDA, key_from_be_bytes, nullifier, rsa_recover, verify_icc_cert,
+    verify_issuer_cert, verify_sdad,
 };
 
 global CA_BITS: u32 = 1984;
@@ -25,6 +25,7 @@ pub struct Inputs {
     pub amount: [u8; 6],
     pub currency: [u8; 2],
     pub today: u32,
+    pub scope: Field,
     pub ca_redc: [u128; CA_N],
     pub issuer_redc: [u128; ISSUER_N],
     pub icc_redc: [u128; ICC_N],
@@ -46,6 +47,8 @@ fn main(
     currency: pub [u8; 2],
     // YYMM
     today: pub u32,
+    // Chosen by the verifier, or at random by the prover when the verifier needs no nullifier.
+    scope: pub Field,
     // Barrett hints; they affect witness generation only.
     ca_redc: [u128; CA_N],
     issuer_redc: [u128; ISSUER_N],
@@ -56,7 +59,7 @@ fn main(
     icc_exponent: u8, // 9F47
     sdad: [u8; ICC_BITS / 8], // 9F4B
     card_auth_data: [u8; CARD_AUTH_LEN], // 9F69
-) {
+) -> pub Field {
     verify(
         Inputs {
             ca_modulus,
@@ -64,6 +67,7 @@ fn main(
             amount,
             currency,
             today,
+            scope,
             ca_redc,
             issuer_redc,
             icc_redc,
@@ -74,10 +78,10 @@ fn main(
             sdad,
             card_auth_data,
         },
-    );
+    )
 }
 
-fn verify(x: Inputs) {
+fn verify(x: Inputs) -> Field {
     let ca_key: BigNumParams<CA_N, CA_BITS> = BigNumParams::new(false, x.ca_modulus, x.ca_redc);
 
     let issuer = verify_issuer_cert::<_, ISSUER_BITS / 8, _>(rsa_recover(ca_key, x.issuer_cert), [], x.issuer_exponent);
@@ -109,4 +113,6 @@ fn verify(x: Inputs) {
         terminal_data[12 + i] = x.card_auth_data[i];
     }
     verify_sdad(rsa_recover(icc_key, x.sdad), FMT_SDAD_FDDA, terminal_data);
+
+    nullifier(icc.modulus, x.scope)
 }
