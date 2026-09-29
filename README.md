@@ -88,10 +88,10 @@ Keep the device's screen on for the whole run, with the screen off, Android thro
 
 | Environment | Circuit | Prove | Verify | Proof size |
 | --- | --- | --- | --- | --- |
-| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fdda` | 1.28 s | 93.0 ms | 637.8 KiB |
-| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 2.48 s | 113.5 ms | 657.8 KiB |
-| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `visa_fdda` | 3.25 s | 90.1 ms | 637.0 KiB |
-| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `mastercard_dda` | 6.02 s | 127 ms | 657.4 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fdda` | 1.66 s | 86.08 ms | 637.9 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 2.56 s | 102.6 ms | 658.3 KiB |
+| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `visa_fdda` | 3.25 s | 86.9 ms | 635.3 KiB |
+| Android 16 on Samsung Galaxy S25 Ultra (Snapdragon 8 Elite) with 8 cores and 12GB RAM | `mastercard_dda` | 5.37 s | 122.7 ms | 659.7 KiB |
 
 > [!INFO]
 > None of the devices were connected to direct power during the benchmark experiments.
