@@ -21,9 +21,20 @@ Each arrow is an RSA signature with public exponent 3 and ISO/IEC 9796-2[^iso979
 For each signature the circuit checks the header, trailer, format, algorithm indicators, key length, exponent and embedded hash; for each certificate it also rebuilds the next key.
 Across the chain, it checks that the issuer identifier matches the PAN[^pan] prefix and that neither certificate has expired.
 
-- **Public inputs:** CA modulus, nonce `9F37`, current month (YYMM); for Visa, also amount `9F02` and currency `5F2A`.
+- **Public inputs:** CA modulus, nonce `9F37`, current month (YYMM), scope; for Visa, also amount `9F02` and currency `5F2A`.
 - **Private inputs:** the card's certificates, signature and related data.
-- **Not checked:** CA key expiry and revocation, issuer certificate revocation, contents of the signed static data.
+- **Output:** a nullifier, the Poseidon2[^poseidon2] hash of the scope and the card's ICC public key: the same for every proof of one card in one scope, unrelated across scopes.
+- **Not checked:** CA key and issuer certificate revocation, contents of the signed static data. The `emv` crate checks CA key expiry, outside the circuit.
+
+The scope sets what a verifier can recognise:
+
+| Scope | Nullifier | For |
+| --- | --- | --- |
+| Unlinkable | none: the prover picks a random scope | card presence, e.g. anti-bot friction |
+| Verifier | the same for a card at one verifier | once per card, e.g. a free trial |
+| Event | the same for a card at one verifier's event | once per card per event, e.g. a poll |
+
+Both sides derive the scope from the verifier's origin, the prover from the one it authenticated, so a verifier can't ask for another verifier's scope.
 
 | Circuit | Scheme | Key widths in bits (CA / issuer / ICC) | Dynamic signature covers |
 | --- | --- | --- | --- |
@@ -55,6 +66,14 @@ Generated files are committed. To regenerate them:
 python3 circuits/scripts/gen_synthetic.py       # rewrites circuits/fixtures/ (deterministic)
 python3 circuits/scripts/gen_circuit_inputs.py  # verifies each fixture natively, writes each circuit's Prover.toml and src/tests/vectors.nr
 ```
+
+## Examples
+
+```bash
+make examples
+```
+
+Runs one example per scope on `visa_fdda` circuit, with a mock card: a synthetic tap re-signed for each challenge under a test CA.
 
 ## Benchmarks
 
@@ -94,6 +113,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [^iso9796-2]: ISO/IEC 9796-2:2010, Digital signature schemes giving message recovery, Part 2: Integer factorization based mechanisms. <https://www.iso.org/standard/54788.html>
 [^sha1]: SHA-1. Wikipedia. <https://en.wikipedia.org/wiki/SHA-1>
 [^pan]: Payment card number. Wikipedia. <https://en.wikipedia.org/wiki/Payment_card_number>
+[^poseidon2]: Grassi, Khovratovich, Schofnegger. Poseidon2: A Faster Version of the Poseidon Hash Function. <https://eprint.iacr.org/2023/323>
 [^9f69]: `9F69`, Card Authentication Related Data: fDDA version number, card unpredictable number and card transaction qualifiers. EMV Book C-3: Kernel 3 Specification. EMVCo. <https://www.emvco.com/specifications/book-c-3-kernel-3-specification/>
 [^make]: GNU Make. <https://www.gnu.org/software/make/>
 [^nargo]: Nargo, the Noir toolchain. <https://noir-lang.org/docs>
