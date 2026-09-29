@@ -1,1 +1,3 @@
 doc-valid-idents = ["ProveKit", ".."]
+# Field arithmetic is modular: it can't overflow.
+arithmetic-side-effects-allowed = ["ark_ff::Fp"]

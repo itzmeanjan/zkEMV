@@ -1,4 +1,4 @@
-use emv::{CaTable, Challenge, Error, Issued, Scheme, Transaction, YearMonth};
+use emv::{CaTable, Challenge, Error, Issued, Scheme, Scope, Transaction, YearMonth};
 use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
 
@@ -9,13 +9,15 @@ fn challenge(scheme: Scheme, year: u16, month: u8) -> Challenge<Issued> {
     let today = YearMonth::new(year, month).unwrap();
     match scheme {
         Scheme::VisaFdda => Challenge::visa_fdda(
+            "verifier.example",
+            Scope::Verifier,
             today,
             Transaction {
                 amount: [0; 6],
                 currency: [0x08, 0x40],
             },
         ),
-        Scheme::MastercardDda => Challenge::mastercard_dda(today),
+        Scheme::MastercardDda => Challenge::mastercard_dda("verifier.example", Scope::Verifier, today),
     }
     .unwrap()
 }

@@ -1,28 +1,28 @@
 use std::time::Duration;
 
 use criterion::{BatchSize, Criterion, SamplingMode, criterion_group, criterion_main};
-use emv::{Scheme, prepare};
+use emv::{Scheme, Scope, prepare};
 
 #[path = "../tests/common/mod.rs"]
 mod common;
 
 fn prove_verify(c: &mut Criterion) {
     for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
-        let (pk, vk) = prepare(&common::compiled(scheme)).unwrap();
-        let issued = common::issue(scheme, common::today());
+        let (pk, vk) = prepare(&common::mock::compiled(scheme)).unwrap();
+        let issued = common::issue(scheme, Scope::Verifier, common::today());
         let received = common::receive(&issued);
-        let (ca, card) = common::tap(&received);
+        let (ca, card) = common::mock::tap(&received);
 
         let proof = pk.prove(&received, &ca, &card).unwrap();
         vk.verify(issued, &ca, &proof).unwrap();
 
         println!(
             "{}: proof is {:.1} KiB",
-            common::package(scheme),
+            common::mock::package(scheme),
             f64::from(u32::try_from(proof.to_bytes().unwrap().len()).unwrap()) / 1024.0
         );
 
-        let mut group = c.benchmark_group(common::package(scheme));
+        let mut group = c.benchmark_group(common::mock::package(scheme));
         group.sample_size(10).sampling_mode(SamplingMode::Flat);
 
         group.measurement_time(Duration::from_secs(20));
@@ -35,9 +35,9 @@ fn prove_verify(c: &mut Criterion) {
         group.bench_function("verify", |b| {
             b.iter_batched(
                 || {
-                    let issued = common::issue(scheme, common::today());
+                    let issued = common::issue(scheme, Scope::Verifier, common::today());
                     let received = common::receive(&issued);
-                    let (ca, card) = common::tap(&received);
+                    let (ca, card) = common::mock::tap(&received);
                     let proof = pk.prove(&received, &ca, &card).unwrap();
                     (issued, ca, proof)
                 },

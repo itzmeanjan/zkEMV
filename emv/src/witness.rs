@@ -1,5 +1,8 @@
 use std::collections::BTreeMap;
 
+use acir::AcirField;
+use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use noirc_abi::{Abi, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
 use num_integer::Integer;
@@ -17,7 +20,7 @@ const MAX_STATIC_DATA_LEN: u16 = 256;
 /// SHA-1 hash and the `BC` trailer that end every recovered EMV certificate.
 const CERT_TAIL_LEN: usize = 21;
 
-pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8]) -> Result<InputMap> {
+pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr) -> Result<InputMap> {
     let scheme = challenge.scheme;
     expect_len("ca_modulus", ca_modulus, scheme.ca_bits() / 8)?;
     let ca = BigUint::from_bytes_be(ca_modulus);
@@ -26,6 +29,7 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8]) -> Result<
         ("ca_modulus".to_owned(), limbs_value(limbs(&ca, scheme.ca_bits())?)),
         ("nonce".to_owned(), bytes(&challenge.nonce)),
         ("today".to_owned(), field(challenge.today.yymm().into())),
+        ("scope".to_owned(), native(scope)),
     ]);
     if let Some(t) = challenge.transaction {
         map.insert("amount".to_owned(), bytes(&t.amount));
@@ -34,9 +38,9 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8]) -> Result<
     Ok(map)
 }
 
-pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], card: &Card) -> Result<InputMap> {
+pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card) -> Result<InputMap> {
     let scheme = challenge.scheme;
-    let mut map = public_input_map(challenge, ca_modulus)?;
+    let mut map = public_input_map(challenge, ca_modulus, scope)?;
     let (issuer_cert, issuer_remainder, icc_cert) = match card {
         Card::VisaFdda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
         Card::MastercardDda(c) => (&c.issuer_cert, &c.issuer_remainder[..], &c.icc_cert),
@@ -89,6 +93,18 @@ pub(crate) fn public_inputs(abi: &Abi, map: &InputMap) -> Result<Vec<FieldElemen
         flatten(value, &mut out).ok_or_else(unknown)?;
     }
     Ok(out)
+}
+
+pub(crate) fn scope_offset(abi: &Abi) -> Result<usize> {
+    let unknown = || Error::UnknownCircuit(abi.parameter_names().into_iter().cloned().collect());
+    let mut offset: usize = 0;
+    for p in abi.parameters.iter().filter(|p| p.is_public()) {
+        if p.name == "scope" {
+            return Ok(offset);
+        }
+        offset = offset.saturating_add(usize::try_from(p.typ.field_count()).map_err(|_| unknown())?);
+    }
+    Err(unknown())
 }
 
 fn flatten(value: &InputValue, out: &mut Vec<FieldElement>) -> Option<()> {
@@ -199,6 +215,10 @@ fn expect_len(field: &'static str, bytes: &[u8], expected: usize) -> Result<()> 
 
 fn field(v: u128) -> InputValue {
     InputValue::Field(NoirElement::from(v))
+}
+
+fn native(f: Fr) -> InputValue {
+    InputValue::Field(NoirElement::from_be_bytes_reduce(&f.into_bigint().to_bytes_be()))
 }
 
 fn bytes(b: &[u8]) -> InputValue {

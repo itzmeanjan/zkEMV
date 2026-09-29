@@ -10,8 +10,8 @@ use provekit_r1cs_compiler::NoirProofSchemeBuilder;
 use provekit_verifier::Verify;
 
 use crate::{
-    CaKey, Card, Challenge, Error, Issued, Received, Result, Scheme,
-    witness::{input_map, public_input_map, public_inputs},
+    CaKey, Card, Challenge, Error, Issued, Nullifier, Received, Result, Scheme,
+    witness::{input_map, public_input_map, public_inputs, scope_offset},
 };
 
 /// Builds the key pair for a compiled circuit.
@@ -77,7 +77,8 @@ impl ProvingKey {
             }
         }
         ca.check(challenge.fields())?;
-        let inputs = input_map(challenge.fields(), ca.modulus(), card)?;
+        let scope = challenge.fields().scope_value.ok_or(Error::Challenge("received without a scope"))?;
+        let inputs = input_map(challenge.fields(), ca.modulus(), scope, card)?;
         provekit(|| self.prover.clone().prove(inputs)).map(Proof)
     }
 
@@ -118,7 +119,11 @@ impl VerifyingKey {
         self.scheme
     }
 
-    /// Verifies that `proof` answers `challenge` under `ca`. `Ok(())` means accept.
+    /// Verifies that `proof` answers `challenge` under `ca`. `Ok` means accept, with the
+    /// card's nullifier in the challenge's [`Scope`](crate::Scope), or `None` for
+    /// [`Scope::Unlinkable`](crate::Scope::Unlinkable).
+    ///
+    /// Recognising a repeated nullifier is the caller's job, e.g. a unique database column.
     ///
     /// Consumes `challenge`, so it verifies at most one proof. Get `ca` from
     /// [`CaTable::lookup`](crate::CaTable::lookup) with the RID and `8F` the prover sends.
@@ -133,7 +138,7 @@ impl VerifyingKey {
     ///   month.
     /// - [`Error::PublicInputsMismatch`]: the proof is for another challenge or CA key.
     /// - [`Error::ProveKit`]: the proof is invalid.
-    pub fn verify(&self, challenge: Challenge<Issued>, ca: &CaKey, proof: &Proof) -> Result<()> {
+    pub fn verify(&self, challenge: Challenge<Issued>, ca: &CaKey, proof: &Proof) -> Result<Option<Nullifier>> {
         if challenge.scheme() != self.scheme {
             return Err(Error::SchemeMismatch {
                 key: self.scheme,
@@ -142,12 +147,20 @@ impl VerifyingKey {
         }
         let challenge = challenge.into_fields();
         ca.check(&challenge)?;
-        let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge, ca.modulus())?)?;
-        if proof.0.public_inputs.0 != expected {
+        // `main`'s parameters, then its return value: the nullifier.
+        let (&nullifier, carried) = proof.0.public_inputs.0.split_last().ok_or(Error::PublicInputsMismatch)?;
+        let scope = match challenge.scope_value {
+            Some(scope) => scope,
+            // The prover drew it; any value is fine.
+            None => *carried.get(scope_offset(&self.verifier.abi)?).ok_or(Error::PublicInputsMismatch)?,
+        };
+        let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge, ca.modulus(), scope)?)?;
+        if carried != expected {
             return Err(Error::PublicInputsMismatch);
         }
         // A `Verifier` is consumed by one verification.
-        provekit(|| self.verifier.clone().verify(&proof.0))
+        provekit(|| self.verifier.clone().verify(&proof.0))?;
+        Ok(challenge.scope_value.map(|_| Nullifier::from_field(nullifier)))
     }
 
     /// Serializes to ProveKit's `.pkv` format.

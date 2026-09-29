@@ -1,9 +1,16 @@
 use std::marker::PhantomData;
 
-use crate::{Error, Result, Scheme};
+use ark_bn254::Fr;
+use ark_ff::PrimeField;
+
+use crate::{Error, Nullifier, Result, Scheme, nullifier};
 
 const VISA_FDDA: u8 = 0x01;
 const MASTERCARD_DDA: u8 = 0x02;
+
+const SCOPE_UNLINKABLE: u8 = 0x00;
+const SCOPE_VERIFIER: u8 = 0x01;
+const SCOPE_EVENT: u8 = 0x02;
 
 /// A month of the years 2000 to 2099, the range of EMV's two-digit years. A certificate
 /// is valid until the end of its expiry month.
@@ -55,6 +62,40 @@ pub struct Transaction {
     pub currency: [u8; 2],
 }
 
+/// Which nullifier a proof carries.
+///
+/// Each side derives the circuit's scope from it and the verifier's origin, the prover from
+/// the origin it authenticated, so a verifier can't ask for another verifier's scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Scope {
+    /// No nullifier: the prover draws a random scope. For card presence.
+    Unlinkable,
+    /// One nullifier per card at this verifier, e.g. for a free trial.
+    Verifier,
+    /// One nullifier per card per event of this verifier, e.g. for a poll. The bytes
+    /// identify the event, e.g. a hash of its name.
+    Event([u8; 32]),
+}
+
+impl Scope {
+    fn kind(self) -> u8 {
+        match self {
+            Self::Unlinkable => SCOPE_UNLINKABLE,
+            Self::Verifier => SCOPE_VERIFIER,
+            Self::Event(_) => SCOPE_EVENT,
+        }
+    }
+
+    /// The circuit's `scope`. `None` for [`Scope::Unlinkable`], whose scope the prover draws.
+    fn derive(self, origin: &str) -> Option<Fr> {
+        match self {
+            Self::Unlinkable => None,
+            Self::Verifier => Some(nullifier::scope(self.kind(), origin, None)),
+            Self::Event(event) => Some(nullifier::scope(self.kind(), origin, Some(&event))),
+        }
+    }
+}
+
 /// [`Challenge`] state: issued by the verifier, which keeps it.
 ///
 /// Not `Clone`, and [`VerifyingKey::verify`](crate::VerifyingKey::verify) consumes the
@@ -66,8 +107,8 @@ pub enum Issued {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Received {}
 
-/// What the verifier asks the card to sign: a random nonce, the current month and, for
-/// Visa, the transaction.
+/// What the verifier asks for: a card signature over a random nonce (for Visa, also the
+/// transaction), certificates valid in the current month, and a nullifier in a [`Scope`].
 ///
 /// The verifier creates a [`Challenge<Issued>`], keeps it in memory, and sends
 /// [`Challenge::to_bytes`]. The prover reads that as a [`Challenge<Received>`], which can
@@ -112,35 +153,42 @@ pub(crate) struct Fields {
     pub(crate) today: YearMonth,
     /// `Some` exactly for [`Scheme::VisaFdda`].
     pub(crate) transaction: Option<Transaction>,
+    pub(crate) scope: Scope,
+    /// The circuit's `scope`; `None` only for an issued [`Scope::Unlinkable`].
+    pub(crate) scope_value: Option<Fr>,
 }
 
 impl Challenge<Issued> {
     /// Issues a challenge for [`Scheme::VisaFdda`]. The card signs `transaction`.
     ///
-    /// # Errors
-    ///
-    /// [`Error::Rng`]: the OS random number generator failed.
-    pub fn visa_fdda(today: YearMonth, transaction: Transaction) -> Result<Self> {
-        Self::issue(Scheme::VisaFdda, today, Some(transaction))
-    }
-
-    /// Issues a challenge for [`Scheme::MastercardDda`].
+    /// `origin` names the verifier, e.g. `example.com`, the same name the prover
+    /// authenticates it by.
     ///
     /// # Errors
     ///
     /// [`Error::Rng`]: the OS random number generator failed.
-    pub fn mastercard_dda(today: YearMonth) -> Result<Self> {
-        Self::issue(Scheme::MastercardDda, today, None)
+    pub fn visa_fdda(origin: &str, scope: Scope, today: YearMonth, transaction: Transaction) -> Result<Self> {
+        Self::issue(origin, scope, Scheme::VisaFdda, today, Some(transaction))
     }
 
-    fn issue(scheme: Scheme, today: YearMonth, transaction: Option<Transaction>) -> Result<Self> {
-        let mut nonce = [0; 4];
-        getrandom::fill(&mut nonce).map_err(|e| Error::Rng(Box::new(e)))?;
+    /// Issues a challenge for [`Scheme::MastercardDda`]. `origin` as for
+    /// [`Challenge::visa_fdda`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Rng`]: the OS random number generator failed.
+    pub fn mastercard_dda(origin: &str, scope: Scope, today: YearMonth) -> Result<Self> {
+        Self::issue(origin, scope, Scheme::MastercardDda, today, None)
+    }
+
+    fn issue(origin: &str, scope: Scope, scheme: Scheme, today: YearMonth, transaction: Option<Transaction>) -> Result<Self> {
         Ok(Self::new(Fields {
             scheme,
-            nonce,
+            nonce: random()?,
             today,
             transaction,
+            scope,
+            scope_value: scope.derive(origin),
         }))
     }
 
@@ -152,6 +200,8 @@ impl Challenge<Issued> {
             nonce,
             today,
             transaction,
+            scope,
+            ..
         } = self.fields;
         let tag = match scheme {
             Scheme::VisaFdda => VISA_FDDA,
@@ -164,6 +214,10 @@ impl Challenge<Issued> {
             out.extend(t.amount);
             out.extend(t.currency);
         }
+        out.push(scope.kind());
+        if let Scope::Event(event) = scope {
+            out.extend(event);
+        }
         out
     }
 
@@ -173,13 +227,18 @@ impl Challenge<Issued> {
 }
 
 impl Challenge<Received> {
-    /// Decodes the output of [`Challenge::to_bytes`].
+    /// Decodes the output of [`Challenge::to_bytes`] from the verifier at `origin`.
+    ///
+    /// Pass the origin the prover authenticated the verifier by, e.g. the TLS server name,
+    /// never one the verifier sent: the scope, and so the nullifier, derives from it. For
+    /// [`Scope::Unlinkable`], draws a random scope instead.
     ///
     /// # Errors
     ///
-    /// - [`Error::Challenge`]: unknown scheme, or the wrong length for the scheme.
+    /// - [`Error::Challenge`]: unknown scheme or scope, or the wrong length for them.
     /// - [`Error::YearMonth`]: the month is invalid.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    /// - [`Error::Rng`]: the OS random number generator failed.
+    pub fn from_bytes(bytes: &[u8], origin: &str) -> Result<Self> {
         let mut rest = bytes;
 
         let [tag] = take(&mut rest)?;
@@ -198,16 +257,29 @@ impl Challenge<Received> {
             MASTERCARD_DDA => (Scheme::MastercardDda, None),
             _ => return Err(Error::Challenge("unknown scheme")),
         };
+        let [kind] = take(&mut rest)?;
+        let scope = match kind {
+            SCOPE_UNLINKABLE => Scope::Unlinkable,
+            SCOPE_VERIFIER => Scope::Verifier,
+            SCOPE_EVENT => Scope::Event(take(&mut rest)?),
+            _ => return Err(Error::Challenge("unknown scope")),
+        };
 
         if !rest.is_empty() {
             return Err(Error::Challenge("trailing bytes"));
         }
 
+        let scope_value = match scope.derive(origin) {
+            Some(value) => value,
+            None => Fr::from_be_bytes_mod_order(&random::<31>()?),
+        };
         Ok(Self::new(Fields {
             scheme,
             nonce,
             today,
             transaction,
+            scope,
+            scope_value: Some(scope_value),
         }))
     }
 }
@@ -241,9 +313,31 @@ impl<S> Challenge<S> {
         self.fields.transaction
     }
 
+    /// The nullifier the verifier asks for.
+    #[must_use]
+    pub fn scope(&self) -> Scope {
+        self.fields.scope
+    }
+
+    /// The nullifier a card whose ICC public key has `icc_modulus` gives for this challenge.
+    /// Anyone who has read the card's ICC certificate can compute it.
+    ///
+    /// `None` for an issued [`Scope::Unlinkable`] challenge, whose scope the prover draws,
+    /// or for a modulus longer than the circuit's 186 bytes.
+    #[must_use]
+    pub fn nullifier_of(&self, icc_modulus: &[u8]) -> Option<Nullifier> {
+        nullifier::nullifier(icc_modulus, self.fields.scope_value?).map(Nullifier::from_field)
+    }
+
     pub(crate) fn fields(&self) -> &Fields {
         &self.fields
     }
+}
+
+fn random<const N: usize>() -> Result<[u8; N]> {
+    let mut out = [0; N];
+    getrandom::fill(&mut out).map_err(|e| Error::Rng(Box::new(e)))?;
+    Ok(out)
 }
 
 fn take<const N: usize>(rest: &mut &[u8]) -> Result<[u8; N]> {

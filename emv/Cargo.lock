@@ -1442,6 +1442,8 @@ name = "emv"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ark-bn254",
+ "ark-ff 0.6.0",
  "const-hex",
  "criterion",
  "getrandom 0.4.3",
@@ -1452,11 +1454,14 @@ dependencies = [
  "provekit-prover",
  "provekit-r1cs-compiler",
  "provekit-verifier",
+ "provekit_acir",
  "provekit_noirc_abi",
  "provekit_noirc_artifacts",
  "serde_json",
  "sha1",
+ "taceo-poseidon2",
  "thiserror 2.0.21",
+ "time",
 ]
 
 [[package]]
@@ -4660,6 +4665,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "taceo-poseidon2"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c167df5e799207335a7acfec5404aa8fae59fad877c6cd20205815d690ba7157"
+dependencies = [
+ "ark-bn254",
+ "ark-ff 0.6.0",
+ "ark-std 0.6.0",
+ "num-bigint 0.4.8",
+ "num-traits",
 ]
 
 [[package]]

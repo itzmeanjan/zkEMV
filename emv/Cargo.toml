@@ -10,7 +10,10 @@ description = "Prove and verify, in zero knowledge, that a genuine EMV contactle
 publish = false
 
 [dependencies]
+acir = { package = "provekit_acir", version = "=1.0.0-beta.26" }
 anyhow = "=1.0.104"
+ark-bn254 = "=0.6.0"
+ark-ff = "=0.6.0"
 const-hex = "=1.19.3"
 getrandom = "=0.4.3"
 provekit-common = "=1.0.2"
@@ -24,10 +27,12 @@ num-integer = "=0.1.47"
 num-traits = "=0.2.19"
 serde_json = "=1.0.151"
 sha1 = "=0.11.0"
+taceo-poseidon2 = { version = "=0.3.0", default-features = false, features = ["bn254", "t4"] }
 thiserror = "=2.0.21"
 
 [dev-dependencies]
 criterion = "=0.8.2"
+time = "=0.3.55"
 
 [[bench]]
 name = "prove_verify"
