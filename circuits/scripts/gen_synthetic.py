@@ -153,7 +153,7 @@ class Kind(TypedDict):
 
 # Card kinds, as measured on real taps.
 KINDS: dict[str, Kind] = {
-    "visa_fast_dda": {
+    "visa_fdda": {
         "aid": "A0000000031010",
         "issuer_bits": 1408,
         "icc_bits": 1024,
@@ -228,7 +228,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     if rem92:
         elements.append(element("92", rem92, "READ RECORD"))
 
-    if pkg == "visa_fast_dda":
+    if pkg == "visa_fdda":
         atc = rng.randbytes(2)
         dynamic = bytes([len(atc)]) + atc
         # Card Authentication Related Data: fDDA version, card UN, CTQ.

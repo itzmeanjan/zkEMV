@@ -1,4 +1,4 @@
-use emv::{Card, MastercardDda, Scheme, Statement, Transaction, VisaFastDda};
+use emv::{Card, MastercardDda, Scheme, Statement, Transaction, VisaFdda};
 use serde_json::Value;
 
 const CIRCUITS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../circuits");
@@ -6,7 +6,7 @@ const TODAY: u16 = 2609;
 
 pub(crate) fn package(scheme: Scheme) -> &'static str {
     match scheme {
-        Scheme::VisaFastDda => "visa_fast_dda",
+        Scheme::VisaFdda => "visa_fdda",
         Scheme::MastercardDda => "mastercard_dda",
     }
 }
@@ -51,13 +51,13 @@ pub(crate) fn tap(scheme: Scheme) -> (Statement, Card) {
         ca_modulus: unhex(&ca["modulus"]),
         nonce: byte_array(&terminal["unpredictableNumber"]),
         today: TODAY,
-        transaction: (scheme == Scheme::VisaFastDda).then(|| Transaction {
+        transaction: (scheme == Scheme::VisaFdda).then(|| Transaction {
             amount: byte_array(&terminal["amountAuthorised"]),
             currency: byte_array(&terminal["currencyCode"]),
         }),
     };
     let card = match scheme {
-        Scheme::VisaFastDda => Card::VisaFastDda(VisaFastDda {
+        Scheme::VisaFdda => Card::VisaFdda(VisaFdda {
             issuer_cert: tag("90"),
             issuer_exponent: tag("9F32")[0],
             icc_cert: tag("9F46"),

@@ -12,7 +12,7 @@ pub struct Statement {
     /// Current month as the integer YYMM, e.g. `2609` for September 2026. A certificate is
     /// valid until the end of its expiry month.
     pub today: u16,
-    /// `Some` for [`Scheme::VisaFastDda`], `None` for [`Scheme::MastercardDda`].
+    /// `Some` for [`Scheme::VisaFdda`], `None` for [`Scheme::MastercardDda`].
     pub transaction: Option<Transaction>,
 }
 
@@ -31,15 +31,15 @@ pub struct Transaction {
 /// tag and length.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Card {
-    /// For [`Scheme::VisaFastDda`].
-    VisaFastDda(VisaFastDda),
+    /// For [`Scheme::VisaFdda`].
+    VisaFdda(VisaFdda),
     /// For [`Scheme::MastercardDda`].
     MastercardDda(MastercardDda),
 }
 
-/// Card data for [`Scheme::VisaFastDda`].
+/// Card data for [`Scheme::VisaFdda`].
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VisaFastDda {
+pub struct VisaFdda {
     /// `90`, from READ RECORD. 248 bytes.
     pub issuer_cert: Vec<u8>,
     /// `9F32`, from READ RECORD. Must be 3.
@@ -80,7 +80,7 @@ impl Card {
     #[must_use]
     pub fn scheme(&self) -> Scheme {
         match self {
-            Self::VisaFastDda(_) => Scheme::VisaFastDda,
+            Self::VisaFdda(_) => Scheme::VisaFdda,
             Self::MastercardDda(_) => Scheme::MastercardDda,
         }
     }

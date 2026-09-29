@@ -1,2 +1,2 @@
 [workspace]
-members = ["emv", "visa_fast_dda", "mastercard_dda"]
+members = ["emv", "visa_fdda", "mastercard_dda"]

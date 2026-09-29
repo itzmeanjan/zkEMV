@@ -7,7 +7,7 @@ use emv::{Scheme, prepare};
 mod common;
 
 fn prove_verify(c: &mut Criterion) {
-    for scheme in [Scheme::VisaFastDda, Scheme::MastercardDda] {
+    for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
         let (pk, vk) = prepare(&common::compiled(scheme)).unwrap();
         let (statement, card) = common::tap(scheme);
 

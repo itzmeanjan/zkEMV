@@ -2,7 +2,7 @@
 use crate::Inputs;
 
 pub global CARDS: [Inputs; 1] = [
-    // visa_fast_dda
+    // visa_fdda
     Inputs {
         ca_modulus: [
             0xc0f0c1298a5c2485c30ad0070158fd,

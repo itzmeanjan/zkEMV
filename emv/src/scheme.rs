@@ -7,7 +7,7 @@ use crate::{Error, Result};
 pub enum Scheme {
     /// Visa (RID `A000000003`), fDDA. The GPO response signs the nonce, amount, currency
     /// and `9F69`.
-    VisaFastDda,
+    VisaFdda,
     /// Mastercard (RID `A000000004`), DDA. The INTERNAL AUTHENTICATE response signs the
     /// nonce.
     MastercardDda,
@@ -24,7 +24,7 @@ impl Scheme {
     #[must_use]
     pub const fn issuer_bits(self) -> usize {
         match self {
-            Self::VisaFastDda => 1408,
+            Self::VisaFdda => 1408,
             Self::MastercardDda => 1920,
         }
     }
@@ -33,7 +33,7 @@ impl Scheme {
     #[must_use]
     pub const fn icc_bits(self) -> usize {
         match self {
-            Self::VisaFastDda => 1024,
+            Self::VisaFdda => 1024,
             Self::MastercardDda => 1152,
         }
     }
@@ -41,7 +41,7 @@ impl Scheme {
     /// `main`'s parameters, in order.
     const fn parameters(self) -> &'static [&'static str] {
         match self {
-            Self::VisaFastDda => &[
+            Self::VisaFdda => &[
                 "ca_modulus",
                 "nonce",
                 "amount",
@@ -77,7 +77,7 @@ impl Scheme {
 
     pub(crate) fn from_abi(abi: &Abi) -> Result<Self> {
         let names = abi.parameter_names();
-        [Self::VisaFastDda, Self::MastercardDda]
+        [Self::VisaFdda, Self::MastercardDda]
             .into_iter()
             .find(|s| names.iter().map(|n| n.as_str()).eq(s.parameters().iter().copied()))
             .ok_or_else(|| Error::UnknownCircuit(names.into_iter().cloned().collect()))

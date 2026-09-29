@@ -69,7 +69,7 @@ mod keys;
 mod scheme;
 mod witness;
 
-pub use card::{Card, MastercardDda, Statement, Transaction, VisaFastDda};
+pub use card::{Card, MastercardDda, Statement, Transaction, VisaFdda};
 pub use error::{Error, Result};
 pub use keys::{Proof, ProvingKey, VerifyingKey, prepare};
 pub use scheme::Scheme;

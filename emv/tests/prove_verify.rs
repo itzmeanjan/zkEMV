@@ -12,7 +12,7 @@ fn keys(scheme: Scheme) -> &'static (ProvingKey, VerifyingKey) {
     static MASTERCARD: OnceLock<(ProvingKey, VerifyingKey)> = OnceLock::new();
 
     let cell = match scheme {
-        Scheme::VisaFastDda => &VISA,
+        Scheme::VisaFdda => &VISA,
         Scheme::MastercardDda => &MASTERCARD,
     };
     cell.get_or_init(|| {
@@ -30,7 +30,7 @@ fn proof(scheme: Scheme) -> &'static Proof {
     static VISA: OnceLock<Proof> = OnceLock::new();
     static MASTERCARD: OnceLock<Proof> = OnceLock::new();
     let cell = match scheme {
-        Scheme::VisaFastDda => &VISA,
+        Scheme::VisaFdda => &VISA,
         Scheme::MastercardDda => &MASTERCARD,
     };
     cell.get_or_init(|| {
@@ -42,8 +42,8 @@ fn proof(scheme: Scheme) -> &'static Proof {
 
 #[test]
 fn visa_proves_and_verifies() {
-    let (statement, _) = tap(Scheme::VisaFastDda);
-    keys(Scheme::VisaFastDda).1.verify(&statement, proof(Scheme::VisaFastDda)).unwrap();
+    let (statement, _) = tap(Scheme::VisaFdda);
+    keys(Scheme::VisaFdda).1.verify(&statement, proof(Scheme::VisaFdda)).unwrap();
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn mastercard_proves_and_verifies() {
 
 #[test]
 fn other_nonce_is_rejected() {
-    for scheme in [Scheme::VisaFastDda, Scheme::MastercardDda] {
+    for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
         let (mut statement, _) = tap(scheme);
         statement.nonce[0] ^= 1;
         assert!(matches!(keys(scheme).1.verify(&statement, proof(scheme)), Err(Error::StatementMismatch)));
@@ -73,14 +73,14 @@ fn other_ca_key_is_rejected() {
 
 #[test]
 fn other_amount_or_date_is_rejected() {
-    let (statement, _) = tap(Scheme::VisaFastDda);
+    let (statement, _) = tap(Scheme::VisaFdda);
     let mut amount = statement.clone();
     amount.transaction.as_mut().unwrap().amount[5] ^= 1;
     let mut today = statement.clone();
     today.today += 1;
     for s in [amount, today] {
         assert!(matches!(
-            keys(Scheme::VisaFastDda).1.verify(&s, proof(Scheme::VisaFastDda)),
+            keys(Scheme::VisaFdda).1.verify(&s, proof(Scheme::VisaFdda)),
             Err(Error::StatementMismatch)
         ));
     }
@@ -88,8 +88,8 @@ fn other_amount_or_date_is_rejected() {
 
 #[test]
 fn proof_is_rejected_by_other_schemes_key() {
-    let (statement, _) = tap(Scheme::VisaFastDda);
-    assert!(keys(Scheme::MastercardDda).1.verify(&statement, proof(Scheme::VisaFastDda)).is_err());
+    let (statement, _) = tap(Scheme::VisaFdda);
+    assert!(keys(Scheme::MastercardDda).1.verify(&statement, proof(Scheme::VisaFdda)).is_err());
 }
 
 /// Rewriting the public inputs a proof carries, to match another statement, must break
@@ -110,23 +110,23 @@ fn forged_public_inputs_are_rejected() {
 #[test]
 fn card_of_other_scheme_is_refused() {
     let (statement, card) = tap(Scheme::MastercardDda);
-    let err = keys(Scheme::VisaFastDda).0.prove(&statement, &card).unwrap_err();
+    let err = keys(Scheme::VisaFdda).0.prove(&statement, &card).unwrap_err();
     assert!(matches!(err, Error::SchemeMismatch { .. }));
 }
 
 #[test]
 fn tampered_card_cannot_be_proved() {
-    let (statement, mut card) = tap(Scheme::VisaFastDda);
-    let Card::VisaFastDda(c) = &mut card else { unreachable!() };
+    let (statement, mut card) = tap(Scheme::VisaFdda);
+    let Card::VisaFdda(c) = &mut card else { unreachable!() };
     c.sdad[64] ^= 1;
-    assert!(keys(Scheme::VisaFastDda).0.prove(&statement, &card).is_err());
+    assert!(keys(Scheme::VisaFdda).0.prove(&statement, &card).is_err());
 }
 
 #[test]
 fn transaction_must_match_scheme() {
-    let (mut statement, card) = tap(Scheme::VisaFastDda);
+    let (mut statement, card) = tap(Scheme::VisaFdda);
     statement.transaction = None;
-    assert!(matches!(keys(Scheme::VisaFastDda).0.prove(&statement, &card), Err(Error::Statement(_))));
+    assert!(matches!(keys(Scheme::VisaFdda).0.prove(&statement, &card), Err(Error::Statement(_))));
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn zero_ca_modulus_is_an_error() {
 
 #[test]
 fn malformed_bytes_are_errors() {
-    for bytes in [&[][..], &[0; 64][..], &proof(Scheme::VisaFastDda).to_bytes().unwrap()[..100]] {
+    for bytes in [&[][..], &[0; 64][..], &proof(Scheme::VisaFdda).to_bytes().unwrap()[..100]] {
         assert!(ProvingKey::from_bytes(bytes).is_err());
         assert!(VerifyingKey::from_bytes(bytes).is_err());
         assert!(Proof::from_bytes(bytes).is_err());

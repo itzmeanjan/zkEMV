@@ -1,5 +1,5 @@
 [package]
-name = "visa_fast_dda"
+name = "visa_fdda"
 type = "bin"
 authors = ["Anjan Roy <hello@itzmeanjan.in>"]
 compiler_version = ">=1.0.0"

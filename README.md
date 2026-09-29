@@ -27,7 +27,7 @@ Across the chain, it checks that the issuer identifier matches the PAN[^pan] pre
 
 | Circuit | Scheme | Key widths in bits (CA / issuer / ICC) | Dynamic signature covers |
 | --- | --- | --- | --- |
-| `visa_fast_dda` | Visa fDDA | 1984 / 1408 / 1024 | `9F37 ‖ 9F02 ‖ 5F2A ‖ 9F69`[^9f69] |
+| `visa_fdda` | Visa fDDA | 1984 / 1408 / 1024 | `9F37 ‖ 9F02 ‖ 5F2A ‖ 9F69`[^9f69] |
 | `mastercard_dda` | Mastercard DDA | 1984 / 1920 / 1152 | `9F37` |
 
 ## Prerequisites
@@ -65,7 +65,7 @@ Proves and verifies each circuit's synthetic card tap data.
 
 | Environment | Circuit | Prove | Verify | Proof size |
 | --- | --- | --- | --- | --- |
-| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fast_dda` | 817 ms | 50.3 ms | 637.8 KiB |
+| Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `visa_fdda` | 817 ms | 50.3 ms | 637.8 KiB |
 | Ubuntu 26.04 on Intel Core i7-1260P with 16 threads and 15GB RAM | `mastercard_dda` | 1.11 s | 63.0 ms | 657.8 KiB |
 
 ## License

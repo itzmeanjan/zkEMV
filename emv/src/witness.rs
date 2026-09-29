@@ -27,12 +27,12 @@ pub(crate) fn public_input_map(scheme: Scheme, statement: &Statement) -> Result<
         ("today".to_owned(), field(statement.today.into())),
     ]);
     match (scheme, statement.transaction) {
-        (Scheme::VisaFastDda, Some(t)) => {
+        (Scheme::VisaFdda, Some(t)) => {
             map.insert("amount".to_owned(), bytes(&t.amount));
             map.insert("currency".to_owned(), bytes(&t.currency));
         }
         (Scheme::MastercardDda, None) => {}
-        (Scheme::VisaFastDda, None) => {
+        (Scheme::VisaFdda, None) => {
             return Err(Error::Statement("Visa fDDA signs the amount and currency; transaction is required"));
         }
         (Scheme::MastercardDda, Some(_)) => {
@@ -45,7 +45,7 @@ pub(crate) fn public_input_map(scheme: Scheme, statement: &Statement) -> Result<
 pub(crate) fn input_map(scheme: Scheme, statement: &Statement, card: &Card) -> Result<InputMap> {
     let mut map = public_input_map(scheme, statement)?;
     let (issuer_cert, issuer_remainder, icc_cert) = match card {
-        Card::VisaFastDda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
+        Card::VisaFdda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
         Card::MastercardDda(c) => (&c.issuer_cert, &c.issuer_remainder[..], &c.icc_cert),
     };
     let (issuer, icc) = chain_moduli(scheme, &statement.ca_modulus, issuer_cert, issuer_remainder, icc_cert)?;
@@ -57,7 +57,7 @@ pub(crate) fn input_map(scheme: Scheme, statement: &Statement, card: &Card) -> R
         ("icc_redc".to_owned(), limbs_value(redc(&icc, scheme.icc_bits())?)),
     ]);
     match card {
-        Card::VisaFastDda(c) => map.extend([
+        Card::VisaFdda(c) => map.extend([
             ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
             ("issuer_exponent".to_owned(), field(c.issuer_exponent.into())),
             ("icc_cert".to_owned(), bytes(&c.icc_cert)),
