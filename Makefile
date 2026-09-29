@@ -22,6 +22,11 @@ test-e2e: ## Compiles the circuits, then proves and verifies the synthetic taps 
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(EMV_DIR) && cargo test --release
 
+.PHONY: examples
+examples: ## Compiles the circuits, then runs the visa_fdda examples: presence, per_verifier, per_event
+	cd $(CIRCUITS_DIR) && nargo compile --workspace
+	cd $(EMV_DIR) && for e in presence per_verifier per_event; do cargo run --release --example $$e || exit 1; done
+
 .PHONY: bench
 bench: ## Compiles the circuits, then benchmarks prove and verify of the synthetic taps with cargo-criterion
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
@@ -54,7 +59,7 @@ lint-python: $(VENV_STAMP) ## Type-checks the Python scripts
 
 .PHONY: lint-rust
 lint-rust: ## Lints the emv crate and checks its API docs
-	! grep -rnE '#!?\[(allow|expect)\(' $(EMV_DIR)/src $(EMV_DIR)/tests $(EMV_DIR)/benches
+	! grep -rnE '#!?\[(allow|expect)\(' $(EMV_DIR)/src $(EMV_DIR)/tests $(EMV_DIR)/benches $(EMV_DIR)/examples
 	cd $(EMV_DIR) && cargo clippy --all-targets -- -D warnings
 	cd $(EMV_DIR) && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
