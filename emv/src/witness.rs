@@ -6,19 +6,14 @@ use ark_ff::{BigInteger, PrimeField};
 use noirc_abi::{Abi, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::{CheckedDiv, pow};
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
-use crate::{Card, Error, Result, Scheme, challenge::Fields};
+use crate::{Card, Error, Result, challenge::Fields};
 
 const LIMB_BITS: usize = 120;
 const LIMB_BASE: u128 = 1 << LIMB_BITS;
-/// noir-bignum's `BARRETT_REDUCTION_OVERFLOW_BITS`.
-const BARRETT_OVERFLOW_BITS: usize = 6;
 /// `mastercard_dda`'s `MAX_STATIC_DATA_LEN`.
 const MAX_STATIC_DATA_LEN: u16 = 256;
-/// SHA-1 hash and the `BC` trailer that end every recovered EMV certificate.
-const CERT_TAIL_LEN: usize = 21;
 
 pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr) -> Result<InputMap> {
     let scheme = challenge.scheme;
@@ -41,18 +36,12 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr)
 pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card) -> Result<InputMap> {
     let scheme = challenge.scheme;
     let mut map = public_input_map(challenge, ca_modulus, scope)?;
-    let (issuer_cert, issuer_remainder, icc_cert) = match card {
-        Card::VisaFdda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
-        Card::MastercardDda(c) => (&c.issuer_cert, &c.issuer_remainder[..], &c.icc_cert),
+    let (issuer_cert, icc_cert) = match card {
+        Card::VisaFdda(c) => (&c.issuer_cert, &c.icc_cert),
+        Card::MastercardDda(c) => (&c.issuer_cert, &c.icc_cert),
     };
-    let (issuer, icc) = chain_moduli(scheme, ca_modulus, issuer_cert, issuer_remainder, icc_cert)?;
-
-    let ca = BigUint::from_bytes_be(ca_modulus);
-    map.extend([
-        ("ca_redc".to_owned(), limbs_value(redc(&ca, scheme.ca_bits())?)),
-        ("issuer_redc".to_owned(), limbs_value(redc(&issuer, scheme.issuer_bits())?)),
-        ("icc_redc".to_owned(), limbs_value(redc(&icc, scheme.icc_bits())?)),
-    ]);
+    expect_len("issuer_cert", issuer_cert, scheme.ca_bits() / 8)?;
+    expect_len("icc_cert", icc_cert, scheme.issuer_bits() / 8)?;
     match card {
         Card::VisaFdda(c) => map.extend([
             ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
@@ -120,62 +109,7 @@ fn flatten(value: &InputValue, out: &mut Vec<FieldElement>) -> Option<()> {
     Some(())
 }
 
-/// The issuer and ICC moduli, which the prover needs for their Barrett hints. The circuit
-/// re-derives and checks both; this only fails early on data that cannot be proved.
-fn chain_moduli(scheme: Scheme, ca: &[u8], issuer_cert: &[u8], issuer_remainder: &[u8], icc_cert: &[u8]) -> Result<(BigUint, BigUint)> {
-    expect_len("issuer_cert", issuer_cert, scheme.ca_bits() / 8)?;
-    expect_len("icc_cert", icc_cert, scheme.issuer_bits() / 8)?;
-
-    // EMV Book 2 tables 6 and 14: format byte, then the offset of the key length byte.
-    let issuer = next_key(
-        &recover(issuer_cert, ca)?,
-        0x02,
-        13,
-        issuer_remainder,
-        scheme.issuer_bits() / 8,
-        "issuer certificate (90) does not recover to an issuer key of the circuit's width under this CA key",
-    )?;
-    let icc = next_key(
-        &recover(icc_cert, &issuer)?,
-        0x04,
-        19,
-        &[],
-        scheme.icc_bits() / 8,
-        "ICC certificate (9F46) does not recover to an ICC key of the circuit's width",
-    )?;
-    Ok((BigUint::from_bytes_be(&issuer), BigUint::from_bytes_be(&icc)))
-}
-
-fn recover(sig: &[u8], modulus: &[u8]) -> Result<Vec<u8>> {
-    let n = BigUint::from_bytes_be(modulus);
-    let s = BigUint::from_bytes_be(sig);
-    if s >= n {
-        return Err(Error::Card("signature is not below its modulus"));
-    }
-    let m = s.modpow(&BigUint::from(3u8), &n).to_bytes_be();
-    let pad = modulus
-        .len()
-        .checked_sub(m.len())
-        .ok_or(Error::Card("recovered message is longer than its modulus"))?;
-    let mut out = vec![0; pad];
-    out.extend(m);
-    Ok(out)
-}
-
-fn next_key(m: &[u8], format: u8, key_len_at: usize, remainder: &[u8], key_len: usize, err: &'static str) -> Result<Vec<u8>> {
-    let key = || {
-        let header_ok =
-            m.first() == Some(&0x6A) && m.get(1) == Some(&format) && m.last() == Some(&0xBC) && m.get(key_len_at).map(|&l| usize::from(l)) == Some(key_len);
-        if !header_ok {
-            return None;
-        }
-        let body = m.get(key_len_at.checked_add(2)?..m.len().checked_sub(CERT_TAIL_LEN)?)?;
-        [body, remainder].concat().get(..key_len).map(<[u8]>::to_vec)
-    };
-    key().ok_or(Error::Card(err))
-}
-
-/// 120-bit little-endian limbs; the top limb absorbs any excess, as a Barrett hint can.
+/// 120-bit little-endian limbs.
 fn limbs(n: &BigUint, bits: usize) -> Result<Vec<u128>> {
     let too_wide = |_| Error::Card("modulus is wider than the circuit's");
     let base = BigUint::from(LIMB_BASE);
@@ -188,17 +122,6 @@ fn limbs(n: &BigUint, bits: usize) -> Result<Vec<u128>> {
     }
     out.push(u128::try_from(rest).map_err(too_wide)?);
     Ok(out)
-}
-
-/// A width that is a multiple of 120 bits is held modulo 2n in the circuit
-/// (`emv::DoubledKey`), so its hint is for 2n at one bit wider:
-/// floor(2^s / 2n) = floor(2^(s-1) / n).
-fn redc(modulus: &BigUint, bits: usize) -> Result<Vec<u128>> {
-    let doubled = bits.is_multiple_of(LIMB_BITS);
-    let bits = bits.saturating_add(doubled.into());
-    let shift = bits.saturating_mul(2).saturating_add(BARRETT_OVERFLOW_BITS).saturating_sub(doubled.into());
-    let quotient = pow(BigUint::from(2u8), shift).checked_div(modulus).ok_or(Error::Card("modulus is zero"))?;
-    limbs(&quotient, bits)
 }
 
 fn expect_len(field: &'static str, bytes: &[u8], expected: usize) -> Result<()> {

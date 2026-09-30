@@ -51,6 +51,7 @@ Both sides derive the scope from the verifier's origin, the prover from the one 
 | Python[^python] | 3.14 | Regenerating fixtures and circuit inputs |
 | black[^black], mypy[^mypy] | As in `requirements.txt` | Linting and formatting Python sources |
 | cargo-criterion[^cargo-criterion] | 1.1.0 | Benchmarking Rust library crate |
+| provekit-cli[^provekit-cli] | 1.0.2 | Printing circuit statistics (`make circuit-stats`) |
 | Docker[^docker], adb[^adb] | any | Benchmarking on an arm64 Android device |
 
 ## Tests
@@ -78,11 +79,13 @@ Runs one example per scope on `visa_fdda` circuit, with a mock card: a synthetic
 ## Benchmarks
 
 ```bash
+make circuit-stats
 make bench
 make bench-android
 ```
 
-Proves and verifies each circuit's synthetic card tap data.
+`circuit-stats` prints each circuit's R1CS constraint and witness counts under ProveKit.
+The benchmarks prove and verify each circuit's synthetic card tap data.
 When benchmarking on an arm64 Android device, already connected over adb, it cross-compiles the benchmark binary with the Android NDK[^ndk] inside Docker (`Dockerfile.bench-android`).
 Keep the device's screen on for the whole run, with the screen off, Android throttles the CPU and the captured timings vary several-fold.
 
@@ -122,6 +125,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [^black]: Black, the Python code formatter. <https://github.com/psf/black>
 [^mypy]: mypy, a static type checker for Python. <https://mypy-lang.org>
 [^cargo-criterion]: cargo-criterion. <https://github.com/bheisler/cargo-criterion>
+[^provekit-cli]: provekit-cli, ProveKit's command-line tool. <https://crates.io/crates/provekit-cli>
 [^docker]: Docker. <https://www.docker.com>
 [^ndk]: Android NDK. <https://developer.android.com/ndk>
 [^adb]: Android Debug Bridge. <https://developer.android.com/tools/adb>

@@ -1449,7 +1449,6 @@ dependencies = [
  "getrandom 0.4.3",
  "num-bigint 0.5.1",
  "num-integer",
- "num-traits",
  "provekit-common",
  "provekit-prover",
  "provekit-r1cs-compiler",

@@ -14,34 +14,15 @@ TODAY = 2609  # YYMM, pinned so the committed outputs don't change every month
 SCOPE = 0x5C09E  # any field element; the emv crate derives real ones
 
 LIMB_BITS = 120
-BARRETT_OVERFLOW_BITS = 6  # bignum's BARRETT_REDUCTION_OVERFLOW_BITS
 MAX_STATIC_DATA_LEN = 256  # mastercard_dda's MAX_STATIC_DATA_LEN
 
 Inputs = dict[str, Any]
 
 
-def limbs(n: int, bits: int) -> list[int]:
-    """120-bit little-endian limbs; the top limb absorbs any excess (redc can exceed)."""
-    count = (bits + LIMB_BITS - 1) // LIMB_BITS
-    out = []
-    for _ in range(count - 1):
-        out.append(n & ((1 << LIMB_BITS) - 1))
-        n >>= LIMB_BITS
-    out.append(n)
-    return out
-
-
-def redc(modulus: int, bits: int) -> list[int]:
-    """Barrett hint. A width that is a multiple of 120 bits is held as arithmetic modulo
-    2n in the circuit (emv::DoubledKey), so its hint is for 2n at one bit wider."""
-    if bits % LIMB_BITS == 0:
-        modulus, bits = 2 * modulus, bits + 1
-    return limbs((1 << (2 * bits + BARRETT_OVERFLOW_BITS)) // modulus, bits)
-
-
-def key_limbs(modulus: bytes) -> tuple[list[int], list[int]]:
-    n, bits = int.from_bytes(modulus, "big"), len(modulus) * 8
-    return limbs(n, bits), redc(n, bits)
+def limbs(modulus: bytes) -> list[int]:
+    """120-bit little-endian limbs."""
+    n, count = int.from_bytes(modulus, "big"), (len(modulus) * 8 + LIMB_BITS - 1) // LIMB_BITS
+    return [(n >> (LIMB_BITS * i)) & ((1 << LIMB_BITS) - 1) for i in range(count)]
 
 
 def fail(pkg: str, what: str) -> NoReturn:
@@ -76,13 +57,9 @@ def circuit_inputs(pkg: str, capks: vc.CAKeys) -> Inputs:
     if not sd or not sd["matched"]:
         fail(pkg, "signed dynamic data")
 
-    ca_modulus, ca_redc = key_limbs(ca)
     x = {
-        "ca_modulus": ca_modulus,
+        "ca_modulus": limbs(ca),
         "nonce": list(un),
-        "ca_redc": ca_redc,
-        "issuer_redc": key_limbs(issuer["modulus"])[1],
-        "icc_redc": key_limbs(icc["modulus"])[1],
         "issuer_cert": list(h("90")),
         "issuer_exponent": h("9F32")[0],
         "icc_cert": list(h("9F46")),

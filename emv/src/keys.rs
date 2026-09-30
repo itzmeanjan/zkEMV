@@ -67,9 +67,9 @@ impl ProvingKey {
     /// - [`Error::CaKey`]: `ca` is for another scheme, or expired before the challenge's
     ///   month.
     /// - [`Error::Length`]: `issuer_cert` or `icc_cert` has the wrong length.
-    /// - [`Error::Card`]: a certificate doesn't recover to a key of the scheme's width, or
-    ///   the static data is too long.
-    /// - [`Error::ProveKit`]: the inputs fail a circuit constraint.
+    /// - [`Error::Card`]: the static data is too long.
+    /// - [`Error::ProveKit`]: the inputs fail a circuit constraint, e.g. a certificate doesn't
+    ///   recover to a key of the scheme's width.
     pub fn prove(&self, challenge: &Challenge<Received>, ca: &CaKey, card: &Card) -> Result<Proof> {
         for data in [challenge.scheme(), card.scheme()] {
             if data != self.scheme {

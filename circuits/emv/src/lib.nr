@@ -3,25 +3,20 @@
 //!
 //! Each RSA (e = 3) with ISO/IEC 9796-2 scheme 1 recovery and SHA-1.
 //!
-//! `BigNumParams::new` fixes each modulus to exactly `BITS` bits, so a circuit is built per
-//! key-width profile. Recovery (`rsa_recover`, or `DoubledKey::recover` for multiples of 120
-//! bits) is split from parsing (`verify_*`).
+//! Each key width is a type parameter of `RsaKey`, so a circuit is built per key-width profile.
+//! Recovery (`RsaKey::recover`) is split from parsing (`verify_*`).
 
-mod doubled;
 mod nullifier;
 mod policy;
+mod rsa;
 mod sha1;
 mod tests;
-
-use bignum::internal::from_be_bytes_unsafe;
-pub use bignum::params::BigNumParams;
-use bignum::RuntimeBigNum;
-
-pub use doubled::DoubledKey;
 
 pub use nullifier::nullifier;
 
 pub use policy::{assert_issuer_id_matches_pan, assert_not_expired};
+
+pub use rsa::RsaKey;
 
 pub global HEADER: u8 = 0x6A;
 pub global TRAILER: u8 = 0xBC;
@@ -40,20 +35,6 @@ global EXPONENT: u8 = 3;
 global HASH_LEN: u32 = 20;
 
 global HASH_TAIL: u32 = HASH_LEN + 1;
-
-/// The modulus must be exactly `BITS` bits. `redc` only feeds unconstrained Barrett
-/// reduction: a wrong value breaks completeness, never soundness.
-pub fn key_from_be_bytes<let N: u32, let BITS: u32>(modulus: [u8; (BITS + 7) / 8], redc: [u128; N]) -> BigNumParams<N, BITS> {
-    BigNumParams::new(false, from_be_bytes_unsafe::<N, BITS>(&modulus), redc)
-}
-
-/// `from_be_bytes` asserts `sig < n`; `to_be_bytes` asserts the result is canonical, without
-/// which a prover could hand over `m + n` and change the bytes read.
-pub fn rsa_recover<let N: u32, let BITS: u32>(key: BigNumParams<N, BITS>, sig: [u8; (BITS + 7) / 8]) -> [u8; (BITS + 7) / 8] {
-    let s = RuntimeBigNum::from_be_bytes(key, sig);
-    let m = s.sqr() * s;
-    m.to_be_bytes()
-}
 
 fn assert_envelope<let L: u32>(m: [u8; L], format: u8) {
     assert_eq(m[0], HEADER, "recovered data header is not 6A");

@@ -81,7 +81,7 @@ fn tampered_issuer_certificate_fails() {
 #[test(should_fail)]
 fn wrong_ca_key_fails() {
     let mut x = CARDS[0];
-    x.ca_modulus[0] ^= 2;
+    x.ca_modulus[0] += 2;
     let _ = verify(x);
 }
 

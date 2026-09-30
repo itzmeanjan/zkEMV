@@ -68,7 +68,7 @@ lint-python: $(VENV_STAMP) ## Type-checks the Python scripts
 
 .PHONY: lint-noir
 lint-noir: ## Fails on any Noir compiler warning, under-constrained value checks included
-	cd $(CIRCUITS_DIR) && nargo check --workspace --deny-warnings
+	cd $(CIRCUITS_DIR) && nargo check --workspace --deny-warnings --overwrite
 
 .PHONY: lint-rust
 lint-rust: ## Lints the emv crate and checks its API docs
