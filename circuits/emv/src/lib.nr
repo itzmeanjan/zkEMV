@@ -10,6 +10,7 @@
 mod doubled;
 mod nullifier;
 mod policy;
+mod sha1;
 mod tests;
 
 use bignum::internal::from_be_bytes_unsafe;
@@ -60,9 +61,15 @@ fn assert_envelope<let L: u32>(m: [u8; L], format: u8) {
     assert_eq(m[L - 1], TRAILER, "recovered data trailer is not BC");
 }
 
-fn assert_hash<let L: u32>(m: [u8; L], digest: [u8; HASH_LEN]) {
-    for i in 0..HASH_LEN {
-        assert_eq(m[L - HASH_TAIL + i], digest[i], "recovered hash mismatch");
+/// Compares the embedded hash word by word: `m`'s bytes are range-checked, so each packed word is
+/// below 2^32, as are the digest's.
+fn assert_hash<let L: u32>(m: [u8; L], digest: [Field; 5]) {
+    for k in 0..5 {
+        let mut word = 0;
+        for i in 0..4 {
+            word = word * 256 + m[L - HASH_TAIL + 4 * k + i] as Field;
+        }
+        assert_eq(word, digest[k], "recovered hash mismatch");
     }
 }
 
@@ -137,7 +144,7 @@ pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(m: [u8; L], rema
         input[body_len + i] = remainder[i];
     }
     input[body_len + REM] = exponent;
-    assert_hash(m, sha1::sha1::digest(input));
+    assert_hash(m, sha1::digest_words(input));
 
     IssuerCert { modulus: assemble_modulus::<_, K, REM, 15>(m, remainder), issuer_id: [m[2], m[3], m[4], m[5]], expiry: [m[6], m[7]] }
 }
@@ -190,11 +197,9 @@ pub fn verify_icc_cert<let L: u32, let K: u32, let REM: u32, let S: u32>(
     input[body_len + REM] = exponent;
 
     let digest = if S == 0 {
-        sha1::sha1::digest(input)
+        sha1::digest_words(input)
     } else {
-        let mut message: BoundedVec<u8, L - HASH_TAIL + REM + S> = BoundedVec::from_array(input);
-        message.extend_from_bounded_vec(static_data);
-        sha1::sha1::sha1_var(message)
+        sha1::digest_words_var(input, static_data)
     };
     assert_hash(m, digest);
 
@@ -231,5 +236,5 @@ pub fn verify_sdad<let L: u32, let T: u32>(m: [u8; L], format: u8, terminal_data
     for i in 0..T {
         input[body_len + i] = terminal_data[i];
     }
-    assert_hash(m, sha1::sha1::digest(input));
+    assert_hash(m, sha1::digest_words(input));
 }
