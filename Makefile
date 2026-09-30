@@ -2,6 +2,7 @@
 
 CIRCUITS_DIR := circuits
 EMV_DIR      := emv
+CIRCUITS     := visa_fdda mastercard_dda
 PY_SCRIPTS   := $(CIRCUITS_DIR)/scripts
 VENV         := .venv
 VENV_BIN     := $(VENV)/bin
@@ -26,6 +27,14 @@ test-e2e: ## Compiles the circuits, then proves and verifies the synthetic taps 
 examples: ## Compiles the circuits, then runs the visa_fdda examples: presence, per_verifier, per_event
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(EMV_DIR) && for e in presence per_verifier per_event; do cargo run --release --example $$e || exit 1; done
+
+.PHONY: circuit-stats
+circuit-stats: ## Compiles the circuits, then prints each one's R1CS constraint and witness counts under ProveKit
+	cd $(CIRCUITS_DIR) && nargo compile --workspace
+	@for c in $(CIRCUITS); do \
+		out=$$(provekit-cli circuit-stats $(CIRCUITS_DIR)/target/$$c.json 2>&1) || { echo "$$out"; exit 1; }; \
+		echo "$$c"; echo "$$out" | grep -E '^TOTAL (CONSTRAINTS|WITNESSES):' | sed 's/^/  /'; \
+	done
 
 .PHONY: bench
 bench: ## Compiles the circuits, then benchmarks prove and verify of the synthetic taps with cargo-criterion
