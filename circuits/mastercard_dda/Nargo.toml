@@ -1,6 +1,7 @@
 [package]
 name = "mastercard_dda"
 type = "bin"
+version = "0.1.0"
 authors = ["Anjan Roy <hello@itzmeanjan.in>"]
 compiler_version = ">=1.0.0"
 license = "MIT OR Apache-2.0"
