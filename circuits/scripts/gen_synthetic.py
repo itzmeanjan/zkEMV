@@ -140,7 +140,20 @@ def mc_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random) -> bytes:
     return value
 
 
+def visa_static_record(pan_bcd8: bytes, aip: bytes, rng: random.Random) -> bytes:
+    """The ODA record, in the tag order and lengths of a Visa corpus card with static data."""
+    fields = [
+        ("5F24", bytes.fromhex("491231")),  # expiry date YYMMDD
+        ("5A", pan_bcd8),
+        ("9F4A", b"\x82"),  # SDA tag list: the AIP
+    ]
+    value = b"".join(tlv(t, v) for t, v in fields)
+    assert len(value) + len(aip) == 22
+    return value
+
+
 class Kind(TypedDict):
+    package: str
     aid: str
     issuer_bits: int
     icc_bits: int
@@ -149,11 +162,15 @@ class Kind(TypedDict):
     sdad_source: str
     aip: str
     static_record: Callable[[bytes, bytes, random.Random], bytes] | None
+    # SFI and record number of the ODA record, if any.
+    oda_record: tuple[int, int] | None
 
 
-# Card kinds, as measured on real taps.
+# Card kinds, as measured on real taps, keyed by fixture name. New kinds go last: one rng
+# feeds them all in order, so a kind added earlier would change every fixture after it.
 KINDS: dict[str, Kind] = {
     "visa_fdda": {
+        "package": "visa_fdda",
         "aid": "A0000000031010",
         "issuer_bits": 1408,
         "icc_bits": 1024,
@@ -163,8 +180,10 @@ KINDS: dict[str, Kind] = {
         "sdad_source": "GPO",
         "aip": "2000",
         "static_record": None,
+        "oda_record": None,
     },
     "mastercard_dda": {
+        "package": "mastercard_dda",
         "aid": "A0000000041010",
         "issuer_bits": 1920,
         "icc_bits": 1152,
@@ -173,6 +192,21 @@ KINDS: dict[str, Kind] = {
         "sdad_source": "INTERNAL AUTHENTICATE",
         "aip": "1980",
         "static_record": mc_static_record,
+        "oda_record": (2, 1),
+    },
+    # A Visa card whose ICC certificate also signs an ODA record and the AIP, and whose
+    # SDAD has Book 2's format 05: the two ways the corpus Visa cards differ from the above.
+    "visa_fdda_oda": {
+        "package": "visa_fdda",
+        "aid": "A0000000031010",
+        "issuer_bits": 1408,
+        "icc_bits": 1024,
+        "pan": "999992000000000",
+        "sdad_format": 0x05,
+        "sdad_source": "GPO",
+        "aip": "2000",
+        "static_record": visa_static_record,
+        "oda_record": (3, 3),
     },
 }
 
@@ -181,7 +215,7 @@ def element(tag: str, value: bytes, source: str) -> dict[str, Any]:
     return {"tag": tag, "value": value.hex().upper(), "length": len(value), "source": source}
 
 
-def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str, Any]:
+def synthesize(name: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str, Any]:
     issuer = RsaKey.generate(kind["issuer_bits"], rng)
     icc = RsaKey.generate(kind["icc_bits"], rng)
 
@@ -196,12 +230,22 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     exchanges: list[dict[str, Any]] = []
     afl = [{"sfi": 1, "first": 1, "last": 1, "odaRecords": 0}]
     static = b""
-    if kind["static_record"]:
+    oda_label: str | None = None
+    if kind["static_record"] and kind["oda_record"]:
         record = kind["static_record"](pan_bcd8, aip, rng)
         static = record + aip
-        afl = [{"sfi": 2, "first": 1, "last": 1, "odaRecords": 1}]
+        sfi, rec = kind["oda_record"]
+        afl = [{"sfi": sfi, "first": rec, "last": rec, "odaRecords": 1}]
+        oda_label = f"READ RECORD sfi={sfi} rec={rec}"
+        command = bytes([0x00, 0xB2, rec, (sfi << 3) | 0x04, 0x00]).hex().upper()
         exchanges.append(
-            {"label": "READ RECORD sfi=2 rec=1", "command": "00B2011400", "response": (tlv("70", record) + b"\x90\x00").hex().upper(), "sw": "9000", "ok": True}
+            {
+                "label": oda_label,
+                "command": command,
+                "response": (tlv("70", record) + b"\x90\x00").hex().upper(),
+                "sw": "9000",
+                "ok": True,
+            }
         )
 
     cert9f46, rem9f48 = certificate(issuer, vc.FMT_ICC, pan_bcd10, icc.modulus(), rng.randbytes(3), static)
@@ -228,7 +272,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     if rem92:
         elements.append(element("92", rem92, "READ RECORD"))
 
-    if pkg == "visa_fdda":
+    if kind["package"] == "visa_fdda":
         atc = rng.randbytes(2)
         dynamic = bytes([len(atc)]) + atc
         # Card Authentication Related Data: fDDA version, card UN, CTQ.
@@ -241,6 +285,8 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
             element("9F69", card_auth, "GPO"),
             element("9F36", atc, "GPO"),
         ]
+        if oda_label:
+            elements.append(element("9F4A", b"\x82", oda_label))
     else:
         icc_dynamic_number = rng.randbytes(8)
         dynamic = bytes([len(icc_dynamic_number)]) + icc_dynamic_number
@@ -250,7 +296,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     elements.append(element("9F4B", sdad(icc, kind["sdad_format"], dynamic, td), kind["sdad_source"]))
     return {
         "synthetic": True,
-        "notes": f"Synthetic {pkg} tap from scripts/gen_synthetic.py (seed {SEED}). " "Test CA key, fake PAN; no real card data.",
+        "notes": f"Synthetic {name} tap from scripts/gen_synthetic.py (seed {SEED}). " "Test CA key, fake PAN; no real card data.",
         "selectedAid": kind["aid"],
         "aip": kind["aip"],
         "afl": afl,
@@ -272,10 +318,13 @@ def main() -> None:
     os.makedirs(FIXTURES, exist_ok=True)
 
     keys: list[dict[str, Any]] = []
-    for pkg, kind in KINDS.items():
-        doc = synthesize(pkg, kind, ca, rng)
-        open(os.path.join(FIXTURES, pkg + ".json"), "w").write(json.dumps(doc, indent=2) + "\n")
+    for name, kind in KINDS.items():
+        doc = synthesize(name, kind, ca, rng)
+        open(os.path.join(FIXTURES, name + ".json"), "w").write(json.dumps(doc, indent=2) + "\n")
+        print(f"wrote fixtures/{name}.json")
         rid = kind["aid"][:10]
+        if any(k["rid"] == rid for k in keys):
+            continue
         checksum = hashlib.sha1(bytes.fromhex(rid + CA_INDEX + ca_mod + exponent)).hexdigest().upper()
         keys.append(
             {
@@ -289,7 +338,6 @@ def main() -> None:
                 "expires": None,
             }
         )
-        print(f"wrote fixtures/{pkg}.json")
 
     table = {
         "sources": [{"url": "scripts/gen_synthetic.py", "retrieved": None}],

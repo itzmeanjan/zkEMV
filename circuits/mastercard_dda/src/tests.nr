@@ -5,7 +5,7 @@ mod vectors;
 
 use crate::verify;
 use emv::nullifier;
-use vectors::{CARDS, ICC_MODULUS};
+use vectors::{CARDS, ICC_MODULI};
 
 #[test]
 fn every_card_verifies() {
@@ -16,7 +16,9 @@ fn every_card_verifies() {
 
 #[test]
 fn nullifier_is_of_the_certified_icc_key() {
-    assert_eq(verify(CARDS[0]), nullifier(ICC_MODULUS, CARDS[0].scope));
+    for i in 0..CARDS.len() {
+        assert_eq(verify(CARDS[i]), nullifier(ICC_MODULI[i], CARDS[i].scope));
+    }
 }
 
 #[test]

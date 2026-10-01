@@ -2,13 +2,15 @@
 
 mod tests;
 
-use emv::{assert_issuer_id_matches_pan, assert_not_expired, FMT_SDAD_FDDA, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad};
+use emv::{assert_issuer_id_matches_pan, assert_not_expired, FMT_SDAD_DDA, FMT_SDAD_FDDA, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad};
 
 global CA_BITS: u32 = 1984;
 /// 120-bit limbs of the CA modulus.
 global CA_N: u32 = 17;
 global ISSUER_BITS: u32 = 1408;
 global ICC_BITS: u32 = 1024;
+/// EMV sets no usable bound on static data to be authenticated (Book 2 gives it as variable); cards with more are rejected.
+global MAX_STATIC_DATA_LEN: u32 = 256;
 
 /// Card Authentication Related Data (`9F69`) on the Visa cards in the corpus.
 global CARD_AUTH_LEN: u32 = 7;
@@ -26,6 +28,7 @@ pub struct Inputs {
     pub issuer_exponent: u8,
     pub icc_cert: [u8; ISSUER_BITS / 8],
     pub icc_exponent: u8,
+    pub static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>,
     pub sdad: [u8; ICC_BITS / 8],
     pub card_auth_data: [u8; CARD_AUTH_LEN],
 }
@@ -46,11 +49,12 @@ fn main(
     issuer_exponent: u8, // 9F32
     icc_cert: [u8; ISSUER_BITS / 8], // 9F46
     icc_exponent: u8, // 9F47
+    static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>, // AFL-flagged records || AIP if 9F4A = 82
     sdad: [u8; ICC_BITS / 8], // 9F4B
     card_auth_data: [u8; CARD_AUTH_LEN], // 9F69
 ) -> pub Field {
     verify(
-        Inputs { ca_modulus, nonce, amount, currency, today, scope, issuer_cert, issuer_exponent, icc_cert, icc_exponent, sdad, card_auth_data },
+        Inputs { ca_modulus, nonce, amount, currency, today, scope, issuer_cert, issuer_exponent, icc_cert, icc_exponent, static_data, sdad, card_auth_data },
     )
 }
 
@@ -64,7 +68,7 @@ fn verify(x: Inputs) -> Field {
         issuer_key.recover(x.icc_cert),
         [],
         x.icc_exponent,
-        BoundedVec::<u8, 0>::new(),
+        x.static_data,
     );
     let icc_key: RsaKey<ICC_BITS / 8> = RsaKey::from_be_bytes(icc.modulus);
 
@@ -85,7 +89,12 @@ fn verify(x: Inputs) -> Field {
     for i in 0..CARD_AUTH_LEN {
         terminal_data[12 + i] = x.card_auth_data[i];
     }
-    verify_sdad(icc_key.recover(x.sdad), FMT_SDAD_FDDA, terminal_data);
+    // Visa cards sign with format 95 or Book 2's 05; the layout is the same.
+    // The format byte is inside the signature, so accepting both admits no other data.
+    let sdad = icc_key.recover(x.sdad);
+    let format = sdad[1];
+    assert((format == FMT_SDAD_FDDA) | (format == FMT_SDAD_DDA), "unexpected recovered data format");
+    verify_sdad(sdad, format, terminal_data);
 
     nullifier(icc.modulus, x.scope)
 }

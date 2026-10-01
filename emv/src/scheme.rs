@@ -59,6 +59,7 @@ impl Scheme {
                 "issuer_exponent",
                 "icc_cert",
                 "icc_exponent",
+                "static_data",
                 "sdad",
                 "card_auth_data",
             ],

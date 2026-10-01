@@ -40,15 +40,22 @@ pub(crate) fn test_ca_table() -> CaTable {
     CaTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
 }
 
-/// The CA key the synthetic tap names, and its card data, as if tapped with `challenge`.
+/// The CA key the scheme's synthetic tap names, and its card data, as if tapped with
+/// `challenge`.
 pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
+    tap_fixture(challenge, package(challenge.scheme()))
+}
+
+/// As [`tap`], for the synthetic tap in `fixtures/<fixture>.json`.
+pub(crate) fn tap_fixture(challenge: &Challenge<Received>, fixture: &str) -> (CaKey, Card) {
     let scheme = challenge.scheme();
     let circuits = circuits();
-    let doc = read_json(&format!("{circuits}/fixtures/{}.json", package(scheme)));
-    let tag = |t: &str| -> Vec<u8> {
+    let doc = read_json(&format!("{circuits}/fixtures/{fixture}.json"));
+    let opt = |t: &str| -> Option<Vec<u8>> {
         let el = doc["elements"].as_array().unwrap().iter().find(|e| e["tag"] == t);
-        unhex(&el.unwrap_or_else(|| panic!("no tag {t}"))["value"])
+        el.map(|e| unhex(&e["value"]))
     };
+    let tag = |t: &str| -> Vec<u8> { opt(t).unwrap_or_else(|| panic!("no tag {t}")) };
 
     let rid = unhex(&doc["selectedAid"])[..5].try_into().unwrap();
     let ca = test_ca_table().lookup(challenge, rid, tag("8F")[0]).unwrap();
@@ -64,6 +71,7 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
             issuer_exponent: tag("9F32")[0],
             icc_cert: tag("9F46"),
             icc_exponent: tag("9F47")[0],
+            static_data: static_data(&doc, &opt("9F4A").unwrap_or_default(), &tag("82")),
             sdad,
             card_auth_data: tag("9F69"),
         }),
@@ -73,7 +81,7 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
             issuer_exponent: tag("9F32")[0],
             icc_cert: tag("9F46"),
             icc_exponent: tag("9F47")[0],
-            static_data: static_data(&doc, &tag("9F4A"), &tag("82")),
+            static_data: static_data(&doc, &opt("9F4A").unwrap_or_default(), &tag("82")),
             sdad,
         }),
     };

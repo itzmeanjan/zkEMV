@@ -4,7 +4,11 @@ use emv::{CaTable, Card, Challenge, Error, MastercardDda, Nullifier, Proof, Prov
 use provekit_common::{FieldElement, NoirProof, file};
 
 mod common;
-use common::{issue, mock::tap, receive, today};
+use common::{
+    issue,
+    mock::{tap, tap_fixture},
+    receive, today,
+};
 
 const SCHEMES: [Scheme; 2] = [Scheme::VisaFdda, Scheme::MastercardDda];
 
@@ -61,8 +65,25 @@ fn fresh_challenge_proves_and_verifies() {
 }
 
 fn icc_modulus(scheme: Scheme) -> Vec<u8> {
-    let path = format!("{}/fixtures/{}.json", common::mock::circuits(), common::mock::package(scheme));
+    fixture_icc_modulus(common::mock::package(scheme))
+}
+
+fn fixture_icc_modulus(fixture: &str) -> Vec<u8> {
+    let path = format!("{}/fixtures/{fixture}.json", common::mock::circuits());
     common::mock::unhex(&common::mock::read_json(&path)["testIccKey"]["modulus"])
+}
+
+/// A Visa card whose ICC certificate also signs static data, and whose SDAD has format 05.
+#[test]
+fn visa_card_with_static_data_proves_and_verifies() {
+    let issued = issue(Scheme::VisaFdda, Scope::Verifier, today());
+    let expected = issued.nullifier_of(&fixture_icc_modulus("visa_fdda_oda")).unwrap();
+    let received = receive(&issued);
+    let (ca, card) = tap_fixture(&received, "visa_fdda_oda");
+    let Card::VisaFdda(visa) = &card else { panic!("not a Visa card") };
+    assert_eq!(visa.static_data.len(), 22);
+    let proof = keys(Scheme::VisaFdda).0.prove(&received, &ca, &card).unwrap();
+    assert_eq!(keys(Scheme::VisaFdda).1.verify(issued, &ca, &proof).unwrap(), Some(expected));
 }
 
 fn session(scheme: Scheme, scope: Scope) -> Option<Nullifier> {
@@ -317,4 +338,14 @@ fn wrong_length_card_fields_are_errors() {
         mutate(&mut c);
         assert!(keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &Card::MastercardDda(c)).is_err());
     }
+}
+
+#[test]
+fn visa_static_data_over_the_bound_is_an_error() {
+    let challenge = receive(&issue(Scheme::VisaFdda, Scope::Verifier, today()));
+    let (ca, mut card) = tap(&challenge);
+    let Card::VisaFdda(c) = &mut card else { unreachable!() };
+    c.static_data = vec![0; 257];
+    let err = keys(Scheme::VisaFdda).0.prove(&challenge, &ca, &card).unwrap_err();
+    assert!(matches!(err, Error::Card(_)), "{err}");
 }

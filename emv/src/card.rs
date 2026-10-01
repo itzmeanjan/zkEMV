@@ -21,6 +21,9 @@ pub struct VisaFdda {
     pub icc_cert: Vec<u8>,
     /// `9F47`, from READ RECORD. Must be 3.
     pub icc_exponent: u8,
+    /// Static data to be authenticated (EMV Book 3, 10.3), as for [`MastercardDda`]. At most
+    /// 256 bytes; empty on cards whose AFL marks no record and that have no `9F4A`.
+    pub static_data: Vec<u8>,
     /// `9F4B`, from the GPO response. 128 bytes.
     pub sdad: Vec<u8>,
     /// `9F69`, from the GPO response. 7 bytes.
