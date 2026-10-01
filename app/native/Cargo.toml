@@ -1,0 +1,51 @@
+[package]
+name = "zkemv-native"
+version = "0.1.0"
+resolver = "3"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+authors = ["Anjan Roy <hello@itzmeanjan.in>"]
+description = "C ABI over the emv crate, for the zkEMV Android app"
+publish = false
+
+[lib]
+name = "zkemv"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Proves the synthetic taps under the test CA, whose private key is public.
+self-test = ["dep:num-bigint", "dep:sha1"]
+
+[dependencies]
+anyhow = "=1.0.104"
+const-hex = { version = "=1.19.3", features = ["serde"] }
+emv = { path = "../../emv" }
+num-bigint = { version = "=0.5.1", optional = true }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha1 = { version = "=0.11.0", optional = true }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "forbid"
+unreachable_pub = "forbid"
+unused_qualifications = "deny"
+# Not forbid: serde's derive allows one of its lints.
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+allow_attributes = "forbid"
+allow_attributes_without_reason = "forbid"
+as_conversions = "forbid"
+dbg_macro = "forbid"
+undocumented_unsafe_blocks = "forbid"
+
+# ProveKit 1.0.1 drops a field when serializing a proof under debug assertions; see emv.
+[profile.dev.package."*"]
+opt-level = 3
+debug-assertions = false
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
