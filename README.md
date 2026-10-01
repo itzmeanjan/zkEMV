@@ -84,7 +84,17 @@ make bench
 make bench-android
 ```
 
-`circuit-stats` prints each circuit's R1CS constraint and witness counts under ProveKit.
+`circuit-stats` prints each circuit's R1CS constraint and witness counts, obtained from ProveKit.
+
+```bash
+visa_fdda
+  TOTAL CONSTRAINTS:      58021  (2^15.82)
+  TOTAL WITNESSES:       103187  (2^16.65)
+mastercard_dda
+  TOTAL CONSTRAINTS:      86372  (2^16.40)
+  TOTAL WITNESSES:       152964  (2^17.22)
+```
+
 The benchmarks prove and verify each circuit's synthetic card tap data.
 When benchmarking on an arm64 Android device, already connected over adb, it cross-compiles the benchmark binary with the Android NDK[^ndk] inside Docker (`Dockerfile.bench-android`).
 Keep the device's screen on for the whole run, with the screen off, Android throttles the CPU and the captured timings vary several-fold.
