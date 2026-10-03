@@ -81,6 +81,7 @@
     clippy::print_stderr
 )]
 
+mod bin_table;
 mod ca;
 mod card;
 mod challenge;
@@ -90,6 +91,7 @@ mod nullifier;
 mod scheme;
 mod witness;
 
+pub use bin_table::{Attributes, BinRoot, BinTable, CardType, Change, PREFIX_DIGITS, Range};
 pub use ca::{CaKey, CaTable};
 pub use card::{Card, MastercardDda, VisaFdda};
 pub use challenge::{Challenge, Issued, Received, Scope, Transaction, YearMonth};

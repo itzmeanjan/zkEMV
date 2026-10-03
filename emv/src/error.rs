@@ -52,6 +52,10 @@ pub enum Error {
     #[error("invalid CA key table: {0}")]
     CaTable(&'static str),
 
+    /// A BIN table is malformed, or a change would make it invalid.
+    #[error("invalid BIN table: {0}")]
+    BinTable(&'static str),
+
     /// No trusted CA key fits: unknown, of another scheme, width or exponent, or expired.
     #[error("CA key: {0}")]
     CaKey(&'static str),

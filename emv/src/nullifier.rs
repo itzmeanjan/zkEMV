@@ -29,12 +29,14 @@ impl Nullifier {
     }
 
     pub(crate) fn from_field(f: Fr) -> Self {
-        let mut out = [0; 32];
-        for (o, b) in out.iter_mut().rev().zip(f.into_bigint().to_bytes_le()) {
-            *o = b;
-        }
-        Self(out)
+        Self(to_be_bytes(f))
     }
+}
+
+pub(crate) fn to_be_bytes(f: Fr) -> [u8; 32] {
+    let mut out = [0; 32];
+    out.copy_from_slice(&f.into_bigint().to_bytes_be());
+    out
 }
 
 /// The circuit's nullifier: Poseidon2 of `[NULLIFIER_DOMAIN_SEPARATOR, scope, m₀, …, m₅]`,
@@ -71,7 +73,7 @@ fn lanes(bytes: &[u8]) -> impl Iterator<Item = Fr> + '_ {
 
 /// noir-lang/poseidon's `Poseidon2::hash`: t = 4, rate 3, the input length times 2^64 in
 /// the capacity lane, a permutation per block including a final partial one, output lane 0.
-fn hash(input: &[Fr]) -> Fr {
+pub(crate) fn hash(input: &[Fr]) -> Fr {
     let mut state = [Fr::zero(); 4];
     if let Some(capacity) = state.last_mut() {
         *capacity = Fr::from_be_bytes_mod_order(&input.len().to_be_bytes()) * Fr::from(TWO_POW_64);
