@@ -20,6 +20,7 @@ from emv_layout import (
     EXPONENT_BYTE_LEN,
     FMT_ICC_CERT,
     FMT_ISSUER_CERT,
+    FMT_SDAD_DDA,
     HASH_ALG_SHA1,
     ISSUER_ID_BYTE_LEN,
     NIBBLE_PAD,
@@ -33,6 +34,7 @@ from emv_layout import (
     RSA_EXPONENT,
     SERIAL_BYTE_LEN,
     STATUS_WORD_SUCCESS,
+    VISA_FMT_SDAD_FDDA,
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -199,7 +201,7 @@ KINDS: dict[str, Kind] = {
         "icc_pubkey_bit_len": 1024,
         # MII 9: not a payment card, so no real PAN can collide.
         "pan": "999990000000000",
-        "sdad_format": 0x95,
+        "sdad_format": VISA_FMT_SDAD_FDDA,
         "sdad_source": "GPO",
         "aip": "2000",
         "static_record": None,
@@ -209,7 +211,7 @@ KINDS: dict[str, Kind] = {
         "issuer_pubkey_bit_len": 1920,
         "icc_pubkey_bit_len": 1152,
         "pan": "999991000000000",
-        "sdad_format": 0x05,
+        "sdad_format": FMT_SDAD_DDA,
         "sdad_source": "INTERNAL AUTHENTICATE",
         "aip": "1980",
         "static_record": mc_static_record,

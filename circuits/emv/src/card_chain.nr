@@ -18,10 +18,8 @@ global PAD_BYTE: u8 = 0xBB;
 
 global FMT_ISSUER_CERT: u8 = 0x02;
 global FMT_ICC_CERT: u8 = 0x04;
-/// Book 2 (Mastercard, RuPay).
 pub global FMT_SDAD_DDA: u8 = 0x05;
-/// Visa contactless kernel, fDDA.
-pub global FMT_SDAD_FDDA: u8 = 0x95;
+pub global VISA_FMT_SDAD_FDDA: u8 = 0x95;
 
 global HASH_ALG_SHA1: u8 = 0x01;
 global PK_ALG_RSA: u8 = 0x01;

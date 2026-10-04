@@ -2,7 +2,7 @@
 
 mod tests;
 
-use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, concat, FMT_SDAD_FDDA, Revealed, Transaction, TrustAnchors};
+use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, concat, Revealed, Transaction, TrustAnchors, VISA_FMT_SDAD_FDDA};
 
 global ISSUER_PUBKEY_BIT_LEN: u32 = 1408;
 global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
@@ -40,6 +40,6 @@ fn main(trust_anchors: pub TrustAnchors, challenge: pub Challenge, transaction: 
         .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(), challenge.today_yymm)
         .key()
         .recover_sdad(card.signed_dynamic_app_data)
-        .verify(FMT_SDAD_FDDA, terminal_data)
+        .verify(VISA_FMT_SDAD_FDDA, terminal_data)
         .reveal(trust_anchors.bin_root, challenge, bin_membership)
 }
