@@ -35,9 +35,9 @@ pub global EXPIRY_BYTE_LEN: u32 = 2;
 pub global PAN_BYTE_LEN: u32 = 10;
 global SERIAL_BYTE_LEN: u32 = 3;
 global EXPONENT_BYTE_LEN: u32 = 1;
-global HASH_BYTE_LEN: u32 = 20;
-global HASH_WORD_BYTE_LEN: u32 = 4;
-global HASH_WORD_COUNT: u32 = HASH_BYTE_LEN / HASH_WORD_BYTE_LEN;
+global HASH_BYTE_LEN: u32 = sha1::DIGEST_BYTE_LEN;
+global HASH_WORD_BYTE_LEN: u32 = sha1::WORD_BYTE_LEN;
+global HASH_WORD_COUNT: u32 = sha1::DIGEST_WORD_COUNT;
 
 global HEADER_BYTE_LEN: u32 = 1;
 global FORMAT_BYTE_LEN: u32 = 1;

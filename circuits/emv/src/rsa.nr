@@ -8,7 +8,7 @@
 //! `m = s^3 (mod n)`; `m < n` is checked explicitly. `s < n` isn't needed: `s mod n` recovers the
 //! same message. One Brillig call per recovery supplies every hint.
 
-use crate::bytes::{BITS_PER_BYTE, BYTE_BASE, BYTE_MASK, pow2};
+use crate::bytes::{BITS_PER_BYTE, BYTE_BASE, BYTE_MASK, BYTE_TOP_BIT_VALUE, pow2};
 
 global LIMB_BIT_LEN: u32 = 120;
 pub global LIMB_BYTE_LEN: u32 = LIMB_BIT_LEN / BITS_PER_BYTE;
@@ -19,7 +19,6 @@ global CARRY_BIT_LEN: u32 = LIMB_BIT_LEN + CARRY_HEADROOM_BIT_LEN;
 global CARRY_OFFSET: Field = pow2(CARRY_BIT_LEN);
 global OFFSET_CARRY_BIT_LEN: u32 = CARRY_BIT_LEN + 1;
 global LIMB_COUNT_EXCLUSIVE_BOUND: u32 = (1 << CARRY_HEADROOM_BIT_LEN) - 1;
-global BYTE_TOP_BIT_VALUE: Field = pow2(BITS_PER_BYTE - 1);
 
 /// An RSA public key with exponent 3 and a `B`-byte modulus.
 pub struct RsaKey<let B: u32> {

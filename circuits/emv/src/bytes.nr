@@ -1,6 +1,7 @@
 pub global BITS_PER_BYTE: u32 = 8;
 pub global BYTE_BASE: Field = pow2(BITS_PER_BYTE);
 pub global BYTE_MASK: u128 = (1 << BITS_PER_BYTE as u128) - 1;
+pub global BYTE_TOP_BIT_VALUE: Field = pow2(BITS_PER_BYTE - 1);
 
 pub global NIBBLE_BIT_LEN: u8 = 4;
 pub global NIBBLES_PER_BYTE: u32 = BITS_PER_BYTE / NIBBLE_BIT_LEN as u32;
