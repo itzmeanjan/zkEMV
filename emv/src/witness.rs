@@ -8,19 +8,20 @@ use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
 use crate::{Card, Error, Result, bin_table::Membership, challenge::Fields};
 
-const LIMB_BITS: usize = 120;
-const LIMB_BASE: u128 = 1 << LIMB_BITS;
+/// The circuits' `LIMB_BIT_LEN`.
+const LIMB_BIT_LEN: usize = 120;
+const LIMB_BASE: u128 = 1 << LIMB_BIT_LEN;
 
 pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr) -> Result<InputMap> {
     let scheme = challenge.scheme;
-    expect_len("ca_modulus", ca_modulus, scheme.ca_bits() / 8)?;
+    expect_len("ca_modulus", ca_modulus, scheme.ca_pubkey_byte_len())?;
     let ca = BigUint::from_bytes_be(ca_modulus);
 
     let mut map = InputMap::from([
         (
             "trust_anchors".to_owned(),
             record([
-                ("ca_modulus", limbs_value(limbs(&ca, scheme.ca_bits())?)),
+                ("ca_modulus", limbs_value(limbs(&ca, scheme.ca_pubkey_bit_len())?)),
                 ("bin_root", native(challenge.bin.map_or_else(Fr::zero, |(root, _)| root.to_field()))),
             ]),
         ),
@@ -37,7 +38,7 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr)
     if let Some(t) = challenge.transaction {
         map.insert(
             "transaction".to_owned(),
-            record([("amount_authorised", bytes(&t.amount)), ("currency_code", bytes(&t.currency))]),
+            record([("amount_authorised", bytes(&t.amount_authorised)), ("currency_code", bytes(&t.currency_code))]),
         );
     }
     Ok(map)
@@ -51,8 +52,8 @@ pub(crate) fn input_map(abi: &Abi, challenge: &Fields, ca_modulus: &[u8], scope:
         Card::VisaFdda(c) => (&c.issuer_pubkey_cert, &c.icc_pubkey_cert),
         Card::MastercardDda(c) => (&c.issuer_pubkey_cert, &c.icc_pubkey_cert),
     };
-    expect_len("issuer_pubkey_cert", issuer_cert, scheme.ca_bits() / 8)?;
-    expect_len("icc_pubkey_cert", icc_cert, scheme.issuer_bits() / 8)?;
+    expect_len("issuer_pubkey_cert", issuer_cert, scheme.ca_pubkey_byte_len())?;
+    expect_len("icc_pubkey_cert", icc_cert, scheme.issuer_pubkey_byte_len())?;
     let card = match card {
         Card::VisaFdda(c) => record([
             ("issuer_pubkey_cert", bytes(&c.issuer_pubkey_cert)),
@@ -164,7 +165,7 @@ fn limbs(n: &BigUint, bits: usize) -> Result<Vec<u128>> {
     let base = BigUint::from(LIMB_BASE);
     let mut rest = n.clone();
     let mut out = Vec::new();
-    for _ in 1..bits.div_ceil(LIMB_BITS) {
+    for _ in 1..bits.div_ceil(LIMB_BIT_LEN) {
         let (quotient, limb) = rest.div_rem(&base);
         out.push(u128::try_from(limb).map_err(too_wide)?);
         rest = quotient;

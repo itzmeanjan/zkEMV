@@ -50,8 +50,10 @@ impl Disclosure {
     }
 }
 
-/// The circuit's `disclose` has 4 bits.
-const _: () = assert!(Disclosure::ALL.bits() == 0b1111);
+/// The circuit's `DISCLOSE_BIT_LEN`: one bit per attribute.
+pub(crate) const DISCLOSE_BIT_LEN: usize = 4;
+const _: () = assert!(Disclosure::ALL.bits() == (1 << DISCLOSE_BIT_LEN) - 1);
+const U64_BYTE_LEN: usize = size_of::<u64>();
 
 impl BitOr for Disclosure {
     type Output = Self;
@@ -76,7 +78,7 @@ pub struct Disclosed {
 
 impl Disclosed {
     /// The circuit's outputs, in order.
-    pub(crate) fn from_outputs(asked: Disclosure, [country, card_type, brand, commercial]: [Fr; 4]) -> Option<Self> {
+    pub(crate) fn from_outputs(asked: Disclosure, [country, card_type, brand, commercial]: [Fr; DISCLOSE_BIT_LEN]) -> Option<Self> {
         Some(Self {
             country: output(asked.contains(Disclosure::COUNTRY), country, |v| u16::try_from(v).ok()).ok()?,
             card_type: output(asked.contains(Disclosure::CARD_TYPE), card_type, CardType::from_code).ok()?,
@@ -94,7 +96,7 @@ impl Disclosed {
 /// `Err` if invalid. An attribute not asked for must be 0.
 fn output<T>(asked: bool, f: Fr, decode: impl FnOnce(u64) -> Option<T>) -> Result<Option<T>, ()> {
     let bytes = to_be_bytes(f);
-    let (high, low) = bytes.split_last_chunk::<8>().ok_or(())?;
+    let (high, low) = bytes.split_last_chunk::<U64_BYTE_LEN>().ok_or(())?;
     if high.iter().any(|&b| b != 0) {
         return Err(());
     }

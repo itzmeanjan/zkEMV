@@ -5,8 +5,8 @@ use ark_ff::Zero;
 use serde_json::{Value, json};
 
 use super::{
-    Attributes, BinTable, CardType, MAX_BRANDS, PREFIX_DIGITS, Range, SLOTS, leaf,
-    tree::{DEPTH, Tree},
+    Attributes, BinTable, CardType, MAX_BRAND_COUNT, PAN_PREFIX_DIGIT_COUNT, Range, SLOT_COUNT, leaf,
+    tree::{TREE_DEPTH, Tree},
     validate,
 };
 use crate::{Error, Result};
@@ -90,8 +90,8 @@ impl BinTable {
         let first = HEADER_ORDER.iter().filter_map(|&key| self.other_keys.get_key_value(key));
         let rest = self.other_keys.iter().filter(|(key, _)| !HEADER_ORDER.contains(&key.as_str()));
         let tree = json!({
-            "depth": DEPTH,
-            "prefix_digits": PREFIX_DIGITS,
+            "depth": TREE_DEPTH,
+            "prefix_digits": PAN_PREFIX_DIGIT_COUNT,
             "leaf": LEAF,
             "node": NODE,
             "root": const_hex::encode(self.root().to_bytes()),
@@ -118,8 +118,8 @@ impl BinTable {
 
 fn check_tree(tree: &Value) -> Result<()> {
     let depth = tree.get("depth").and_then(Value::as_u64).and_then(|d| usize::try_from(d).ok());
-    let digits = tree.get("prefix_digits").and_then(Value::as_u64).and_then(|d| u32::try_from(d).ok());
-    if depth != Some(DEPTH) || digits != Some(PREFIX_DIGITS) {
+    let digits = tree.get("prefix_digits").and_then(Value::as_u64).and_then(|d| usize::try_from(d).ok());
+    if depth != Some(TREE_DEPTH) || digits != Some(PAN_PREFIX_DIGIT_COUNT) {
         return Err(Error::BinTable("tree depth or prefix digits are not this crate's"));
     }
     for (key, expected) in [("leaf", LEAF), ("node", NODE)] {
@@ -142,7 +142,7 @@ fn parse_brands(brands: Option<&Value>) -> Result<Vec<String>> {
                 .ok_or(Error::BinTable("brand is not a non-empty string"))
         })
         .collect::<Result<_>>()?;
-    if brands.len() > MAX_BRANDS {
+    if brands.len() > MAX_BRAND_COUNT {
         return Err(Error::BinTable("more than 255 brands"));
     }
     if brands.iter().collect::<BTreeSet<_>>().len() != brands.len() {
@@ -160,7 +160,7 @@ fn parse_range(entry: &Value) -> Result<(usize, Range)> {
     };
     let slot = usize::try_from(uint("slot")?)
         .ok()
-        .filter(|&s| s < SLOTS)
+        .filter(|&s| s < SLOT_COUNT)
         .ok_or(Error::BinTable("slot out of the tree"))?;
     let country = u16::try_from(uint("country")?).map_err(|_| Error::BinTable("country must be an ISO 3166-1 numeric code"))?;
     let card_type = entry

@@ -122,7 +122,11 @@ INTERNAL_RC = (
     0xEF915F0AC120B876ABCCCEB344A1D36BAD3F3C5AB91A8DDCBEC2E060D8BEFAC,
 )
 
-RATE = 3
+WIDTH = len(MAT_DIAG_M_1)
+RATE = WIDTH - 1
+SBOX_DEGREE = 5
+HALF_FULL_ROUNDS = len(EXTERNAL_RC) // 2
+LENGTH_TAG_SHIFT = 64
 
 
 def _m4(s: list[int]) -> list[int]:
@@ -135,20 +139,20 @@ def _m4(s: list[int]) -> list[int]:
 
 def permutation(state: list[int]) -> list[int]:
     s = _m4(state)
-    for row in EXTERNAL_RC[:4]:
-        s = _m4([pow((x + c) % P, 5, P) for x, c in zip(s, row)])
+    for row in EXTERNAL_RC[:HALF_FULL_ROUNDS]:
+        s = _m4([pow((x + c) % P, SBOX_DEGREE, P) for x, c in zip(s, row)])
     for c in INTERNAL_RC:
-        s[0] = pow((s[0] + c) % P, 5, P)
+        s[0] = pow((s[0] + c) % P, SBOX_DEGREE, P)
         total = sum(s)
         s = [(x * m + total) % P for x, m in zip(s, MAT_DIAG_M_1)]
-    for row in EXTERNAL_RC[4:]:
-        s = _m4([pow((x + c) % P, 5, P) for x, c in zip(s, row)])
+    for row in EXTERNAL_RC[HALF_FULL_ROUNDS:]:
+        s = _m4([pow((x + c) % P, SBOX_DEGREE, P) for x, c in zip(s, row)])
     return s
 
 
 def hash(inputs: list[int]) -> int:
     """The input length times 2^64 in the capacity lane, a permutation per block, output lane 0."""
-    state = [0, 0, 0, (len(inputs) << 64) % P]
+    state = [0] * RATE + [(len(inputs) << LENGTH_TAG_SHIFT) % P]
     for i in range(0, len(inputs), RATE):
         for j, x in enumerate(inputs[i : i + RATE]):
             state[j] = (state[j] + x) % P

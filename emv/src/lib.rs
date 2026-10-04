@@ -95,12 +95,13 @@ mod challenge;
 mod disclosure;
 mod error;
 mod keys;
+mod layout;
 mod nullifier;
 mod pan;
 mod scheme;
 mod witness;
 
-pub use bin_table::{Attributes, BinRoot, BinTable, CardType, Change, PREFIX_DIGITS, Range};
+pub use bin_table::{Attributes, BinRoot, BinTable, CardType, Change, PAN_PREFIX_DIGIT_COUNT, Range};
 pub use ca::{CaKey, CaTable};
 pub use card::{Card, MastercardDda, VisaFdda};
 pub use challenge::{Challenge, Issued, Received, Scope, Transaction, YearMonth};

@@ -5,8 +5,8 @@ use emv::{BinRoot, Challenge, Disclosure, Error, Issued, Received, Scheme, Scope
 const ORIGIN: &str = "verifier.example";
 
 const TRANSACTION: Transaction = Transaction {
-    amount: [0, 0, 0, 0, 0x12, 0x34],
-    currency: [0x09, 0x78],
+    amount_authorised: [0, 0, 0, 0, 0x12, 0x34],
+    currency_code: [0x09, 0x78],
 };
 
 fn today() -> YearMonth {

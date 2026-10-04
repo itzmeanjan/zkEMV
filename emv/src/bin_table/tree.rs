@@ -3,7 +3,8 @@ use ark_ff::Zero;
 
 use crate::nullifier::hash;
 
-pub(crate) const DEPTH: usize = 24;
+pub(crate) const TREE_DEPTH: usize = 24;
+const TREE_ARITY: usize = 2;
 
 /// Nodes past a level's end are empty subtrees.
 #[derive(Clone, Debug)]
@@ -16,11 +17,11 @@ pub(crate) struct Tree {
 impl Tree {
     pub(crate) fn new(leaves: Vec<Fr>) -> Self {
         let empty_roots = empty_subtree_roots();
-        let mut levels = Vec::with_capacity(DEPTH.saturating_add(1));
+        let mut levels = Vec::with_capacity(TREE_DEPTH.saturating_add(1));
         let mut nodes = leaves;
-        for &fill in empty_roots.iter().take(DEPTH) {
+        for &fill in empty_roots.iter().take(TREE_DEPTH) {
             let parents = nodes
-                .chunks(2)
+                .chunks(TREE_ARITY)
                 .map(|pair| {
                     let left = pair.first().copied().unwrap_or(fill);
                     let right = pair.get(1).copied().unwrap_or(fill);
@@ -35,7 +36,7 @@ impl Tree {
     }
 
     pub(crate) fn root(&self) -> Fr {
-        self.node(DEPTH, 0)
+        self.node(TREE_DEPTH, 0)
     }
 
     pub(crate) fn leaf(&self, slot: usize) -> Fr {
@@ -44,19 +45,19 @@ impl Tree {
 
     pub(crate) fn path(&self, slot: usize) -> Vec<Fr> {
         let mut index = slot;
-        let mut siblings = Vec::with_capacity(DEPTH);
-        for level in 0..DEPTH {
+        let mut siblings = Vec::with_capacity(TREE_DEPTH);
+        for level in 0..TREE_DEPTH {
             siblings.push(self.node(level, index ^ 1));
             index >>= 1;
         }
         siblings
     }
 
-    /// `slot < 2^DEPTH`.
+    /// `slot < 2^TREE_DEPTH`.
     pub(crate) fn set(&mut self, slot: usize, leaf: Fr) {
         let mut index = slot;
         let mut node = leaf;
-        for level in 0..=DEPTH {
+        for level in 0..=TREE_DEPTH {
             let fill = self.empty_roots.get(level).copied().unwrap_or_else(Fr::zero);
             if let Some(nodes) = self.levels.get_mut(level) {
                 if nodes.len() <= index {
@@ -94,7 +95,7 @@ pub(crate) fn root_of(slot: usize, leaf: Fr, siblings: &[Fr]) -> Fr {
 
 fn empty_subtree_roots() -> Vec<Fr> {
     let mut node = Fr::zero();
-    (0..=DEPTH)
+    (0..=TREE_DEPTH)
         .map(|_| {
             let this = node;
             node = hash(&[node, node]);
@@ -108,7 +109,7 @@ mod tests {
     use ark_bn254::Fr;
     use ark_ff::Zero;
 
-    use super::{DEPTH, Tree, empty_subtree_roots, root_of};
+    use super::{TREE_DEPTH, Tree, empty_subtree_roots, root_of};
     use crate::nullifier::hash;
 
     fn leaves(n: u64) -> Vec<Fr> {
@@ -120,11 +121,11 @@ mod tests {
         let [a, b, c] = [1u8, 2, 3].map(Fr::from);
         let empty = empty_subtree_roots();
         let mut node = hash(&[hash(&[a, b]), hash(&[c, Fr::zero()])]);
-        for &e in empty.iter().skip(2).take(DEPTH - 2) {
+        for &e in empty.iter().skip(2).take(TREE_DEPTH - 2) {
             node = hash(&[node, e]);
         }
         assert_eq!(Tree::new(vec![a, b, c]).root(), node);
-        assert_eq!(Some(Tree::new(Vec::new()).root()), empty.get(DEPTH).copied());
+        assert_eq!(Some(Tree::new(Vec::new()).root()), empty.get(TREE_DEPTH).copied());
     }
 
     #[test]
@@ -148,7 +149,7 @@ mod tests {
         let tree = Tree::new(leaves(6));
         for slot in [0, 3, 5, 6, 1000] {
             let path = tree.path(slot);
-            assert_eq!(path.len(), DEPTH);
+            assert_eq!(path.len(), TREE_DEPTH);
             assert_eq!(root_of(slot, tree.leaf(slot), &path), tree.root());
         }
     }

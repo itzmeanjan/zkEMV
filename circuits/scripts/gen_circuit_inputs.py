@@ -9,16 +9,19 @@ from typing import Any, NoReturn
 
 import bin_tree
 import verify_emv_reference as vc
+from emv_layout import BITS_PER_BYTE
 from gen_synthetic import FIXTURES, KINDS
 
 ROOT = os.path.dirname(FIXTURES)
 CA_KEYS = os.path.join(FIXTURES, "test-ca-keys.json")
 BIN_TABLE = os.path.join(FIXTURES, "bin-table.json")
-DISCLOSE_ALL = 0xF
+DISCLOSE_BIT_LEN = 4  # one bit per BIN attribute, as the circuits' DISCLOSE_BIT_LEN
+DISCLOSE_ALL = (1 << DISCLOSE_BIT_LEN) - 1
 TODAY = 2609  # YYMM, pinned so the committed outputs don't change every month
 SCOPE = 0x5C09E  # any field element; the emv crate derives real ones
 
-LIMB_BITS = 120
+LIMB_BIT_LEN = 120  # the circuits' LIMB_BIT_LEN
+TOML_INTEGER_LIMIT = 1 << 63  # TOML integers are signed 64-bit; larger ones go in strings
 
 Inputs = dict[str, Any]
 
@@ -31,8 +34,8 @@ class Struct:
 
 def limbs(modulus: bytes) -> list[int]:
     """120-bit little-endian limbs."""
-    n, count = int.from_bytes(modulus, "big"), (len(modulus) * 8 + LIMB_BITS - 1) // LIMB_BITS
-    return [(n >> (LIMB_BITS * i)) & ((1 << LIMB_BITS) - 1) for i in range(count)]
+    n, count = int.from_bytes(modulus, "big"), (len(modulus) * BITS_PER_BYTE + LIMB_BIT_LEN - 1) // LIMB_BIT_LEN
+    return [(n >> (LIMB_BIT_LEN * i)) & ((1 << LIMB_BIT_LEN) - 1) for i in range(count)]
 
 
 def circuit_global(pkg: str, name: str) -> int:
@@ -48,9 +51,9 @@ def fail(pkg: str, what: str) -> NoReturn:
 
 
 def bin_membership(pan: str, table: dict[str, Any], tree: list[dict[int, int]]) -> Struct:
-    r = bin_tree.find(table, int(pan[: bin_tree.PREFIX_DIGITS]))
+    r = bin_tree.find(table, int(pan[: bin_tree.PAN_PREFIX_DIGIT_COUNT]))
     if r is None:
-        raise SystemExit(f"fixtures/bin-table.json: no range holds PAN prefix {pan[: bin_tree.PREFIX_DIGITS]}")
+        raise SystemExit(f"fixtures/bin-table.json: no range holds PAN prefix {pan[: bin_tree.PAN_PREFIX_DIGIT_COUNT]}")
 
     fields = {"low": r["low"], "high": r["high"], "country": r["country"], "card_type": bin_tree.TYPES[r["type"]]}
     fields |= {"brand": table["brands"].index(r["brand"]) + 1, "commercial": r["commercial"], "slot": r["slot"], "siblings": bin_tree.path(tree, r["slot"])}
@@ -113,9 +116,9 @@ def toml_value(v: Any) -> str:
         return str(v).lower()
 
     if isinstance(v, list):
-        return "[" + ", ".join(f'"{i}"' if i >= 1 << 63 else str(i) for i in v) + "]"
+        return "[" + ", ".join(f'"{i}"' if i >= TOML_INTEGER_LIMIT else str(i) for i in v) + "]"
 
-    return f'"{v}"' if isinstance(v, int) and v >= 1 << 63 else str(v)
+    return f'"{v}"' if isinstance(v, int) and v >= TOML_INTEGER_LIMIT else str(v)
 
 
 def to_toml(x: Inputs) -> str:

@@ -54,7 +54,7 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
     let ca = test_ca_table().lookup(challenge, rid, tag("8F")[0]).unwrap();
 
     let terminal_data = match challenge.transaction() {
-        Some(t) => [&challenge.nonce()[..], &t.amount, &t.currency, &tag("9F69")].concat(),
+        Some(t) => [&challenge.nonce()[..], &t.amount_authorised, &t.currency_code, &tag("9F69")].concat(),
         None => challenge.nonce().to_vec(),
     };
     let sdad = resign(&doc["testIccKey"], &tag("9F4B"), &terminal_data);

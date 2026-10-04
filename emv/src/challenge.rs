@@ -3,7 +3,19 @@ use std::marker::PhantomData;
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 
-use crate::{BinRoot, Disclosure, Error, Nullifier, Result, Scheme, nullifier};
+use crate::{
+    BinRoot, Disclosure, Error, Nullifier, Result, Scheme,
+    layout::{AMOUNT_AUTHORISED_BYTE_LEN, CURRENCY_CODE_BYTE_LEN, NONCE_BYTE_LEN},
+    nullifier::{self, LANE_BYTE_LEN},
+};
+
+/// EMV's two-digit years.
+const FIRST_YEAR: u16 = 2000;
+const MAX_YY: u8 = 99;
+const MONTHS: std::ops::RangeInclusive<u8> = 1..=12;
+/// YYMM: the year above two decimal digits.
+const YY_SCALE: u16 = 100;
+pub(crate) const EVENT_ID_BYTE_LEN: usize = 32;
 
 const VISA_FDDA: u8 = 0x01;
 const MASTERCARD_DDA: u8 = 0x02;
@@ -26,9 +38,9 @@ impl YearMonth {
     ///
     /// [`Error::YearMonth`]: `year` is not in 2000..=2099 or `month` is not in 1..=12.
     pub fn new(year: u16, month: u8) -> Result<Self> {
-        let yy = year.checked_sub(2000).and_then(|yy| u8::try_from(yy).ok()).filter(|&yy| yy <= 99);
+        let yy = year.checked_sub(FIRST_YEAR).and_then(|yy| u8::try_from(yy).ok()).filter(|&yy| yy <= MAX_YY);
         match yy {
-            Some(yy) if (1..=12).contains(&month) => Ok(Self { yy, month }),
+            Some(yy) if MONTHS.contains(&month) => Ok(Self { yy, month }),
             _ => Err(Error::YearMonth { year, month }),
         }
     }
@@ -36,7 +48,7 @@ impl YearMonth {
     /// The year, e.g. `2026`.
     #[must_use]
     pub fn year(self) -> u16 {
-        2000u16.saturating_add(self.yy.into())
+        FIRST_YEAR.saturating_add(self.yy.into())
     }
 
     /// The month, 1 to 12.
@@ -45,9 +57,9 @@ impl YearMonth {
         self.month
     }
 
-    /// The circuit's `today`: YYMM as an integer, e.g. `2609`.
+    /// The circuit's `today_yymm`, e.g. `2609`.
     pub(crate) fn yymm(self) -> u16 {
-        u16::from(self.yy).saturating_mul(100).saturating_add(self.month.into())
+        u16::from(self.yy).saturating_mul(YY_SCALE).saturating_add(self.month.into())
     }
 }
 
@@ -55,11 +67,11 @@ impl YearMonth {
 /// GPO PDOL.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Transaction {
-    /// Amount, Authorised `9F02`: 12 BCD digits, minor units.
-    pub amount: [u8; 6],
+    /// Amount, Authorised `9F02`: BCD, minor units.
+    pub amount_authorised: [u8; AMOUNT_AUTHORISED_BYTE_LEN],
     /// Transaction Currency Code `5F2A`: ISO 4217 numeric code in BCD, e.g. `[0x08, 0x40]`
     /// for USD.
-    pub currency: [u8; 2],
+    pub currency_code: [u8; CURRENCY_CODE_BYTE_LEN],
 }
 
 /// Which nullifier a proof carries.
@@ -74,7 +86,7 @@ pub enum Scope {
     Verifier,
     /// One nullifier per card per event of this verifier, e.g. for a poll. The bytes
     /// identify the event, e.g. a hash of its name.
-    Event([u8; 32]),
+    Event([u8; EVENT_ID_BYTE_LEN]),
 }
 
 impl Scope {
@@ -150,7 +162,7 @@ pub struct Challenge<S> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Fields {
     pub(crate) scheme: Scheme,
-    pub(crate) nonce: [u8; 4],
+    pub(crate) nonce: [u8; NONCE_BYTE_LEN],
     pub(crate) today: YearMonth,
     /// `Some` exactly for [`Scheme::VisaFdda`].
     pub(crate) transaction: Option<Transaction>,
@@ -224,8 +236,8 @@ impl Challenge<Issued> {
         out.extend(nonce);
         out.extend([today.yy, today.month]);
         if let Some(t) = transaction {
-            out.extend(t.amount);
-            out.extend(t.currency);
+            out.extend(t.amount_authorised);
+            out.extend(t.currency_code);
         }
         out.push(scope.kind());
         if let Scope::Event(event) = scope {
@@ -266,13 +278,13 @@ impl Challenge<Received> {
         let nonce = take(&mut rest)?;
         let [yy, month] = take(&mut rest)?;
 
-        let today = YearMonth::new(2000u16.saturating_add(yy.into()), month)?;
+        let today = YearMonth::new(FIRST_YEAR.saturating_add(yy.into()), month)?;
         let (scheme, transaction) = match tag {
             VISA_FDDA => (
                 Scheme::VisaFdda,
                 Some(Transaction {
-                    amount: take(&mut rest)?,
-                    currency: take(&mut rest)?,
+                    amount_authorised: take(&mut rest)?,
+                    currency_code: take(&mut rest)?,
                 }),
             ),
             MASTERCARD_DDA => (Scheme::MastercardDda, None),
@@ -300,7 +312,7 @@ impl Challenge<Received> {
 
         let scope_value = match scope.derive(origin) {
             Some(value) => value,
-            None => Fr::from_be_bytes_mod_order(&random::<31>()?),
+            None => Fr::from_be_bytes_mod_order(&random::<LANE_BYTE_LEN>()?),
         };
         Ok(Self::new(Fields {
             scheme,
@@ -327,7 +339,7 @@ impl<S> Challenge<S> {
 
     /// Nonce `9F37` for the tap.
     #[must_use]
-    pub fn nonce(&self) -> [u8; 4] {
+    pub fn nonce(&self) -> [u8; NONCE_BYTE_LEN] {
         self.fields.nonce
     }
 

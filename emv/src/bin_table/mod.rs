@@ -7,24 +7,41 @@ use ark_bn254::Fr;
 use ark_ff::{Field, PrimeField, Zero};
 use serde_json::{Map, Value};
 
-use crate::{Error, Result, nullifier::to_be_bytes};
-use tree::{DEPTH, Tree, root_of};
+use crate::{
+    Error, Result,
+    layout::{BINARY_BASE, DECIMAL_BASE, FIELD_BYTE_LEN},
+    nullifier::to_be_bytes,
+};
+use tree::{TREE_DEPTH, Tree, root_of};
 
 /// PAN digits a range bound has.
-pub const PREFIX_DIGITS: u32 = 12;
-const MAX_PREFIX: u64 = 999_999_999_999;
-const SLOTS: usize = 1 << DEPTH;
-/// ISO 3166-1 numeric: 3 digits.
-const MAX_COUNTRY: u16 = 999;
-/// 8-bit codes; 0 is unused.
-const MAX_BRANDS: usize = 255;
+pub const PAN_PREFIX_DIGIT_COUNT: usize = 12;
+const MAX_PAN_PREFIX: u64 = pow10(PAN_PREFIX_DIGIT_COUNT) - 1;
+/// ISO 3166-1 numeric.
+const COUNTRY_CODE_DIGIT_COUNT: usize = 3;
+const MAX_COUNTRY_CODE: u64 = pow10(COUNTRY_CODE_DIGIT_COUNT) - 1;
+const CARD_TYPE_COUNT: u64 = 3;
+const SLOT_COUNT: usize = 1 << TREE_DEPTH;
 
-const VERSION: u64 = 1;
-const COMMERCIAL_BITS: u64 = 1;
-const BRAND_BITS: u64 = 8;
-const TYPE_BITS: u64 = 2;
-const COUNTRY_BITS: u64 = 10;
-const PREFIX_BITS: u64 = 40;
+/// Leaf field widths, as in `circuits/emv/src/bin_table.nr`.
+const PAN_PREFIX_BIT_LEN: u32 = u64::BITS - MAX_PAN_PREFIX.leading_zeros();
+const COUNTRY_CODE_BIT_LEN: u32 = u64::BITS - MAX_COUNTRY_CODE.leading_zeros();
+const CARD_TYPE_BIT_LEN: u32 = u64::BITS - CARD_TYPE_COUNT.leading_zeros();
+const BRAND_CODE_BIT_LEN: u32 = u8::BITS;
+const COMMERCIAL_FLAG_BIT_LEN: u32 = 1;
+const LEAF_VERSION: u64 = 1;
+/// Brand codes are the index plus 1, so 0 is unused.
+const MAX_BRAND_COUNT: usize = (1 << BRAND_CODE_BIT_LEN) - 1;
+
+const fn pow10(n: usize) -> u64 {
+    let mut x: u64 = 1;
+    let mut i = 0;
+    while i < n {
+        x = x.saturating_mul(DECIMAL_BASE);
+        i = i.saturating_add(1);
+    }
+    x
+}
 
 /// How the card is funded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -76,7 +93,7 @@ pub struct Attributes {
     pub commercial: bool,
 }
 
-/// PANs whose first [`PREFIX_DIGITS`] digits are in `low..=high`.
+/// PANs whose first [`PAN_PREFIX_DIGIT_COUNT`] digits are in `low..=high`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Range {
     /// Lowest prefix.
@@ -89,18 +106,18 @@ pub struct Range {
 
 /// Merkle root of a [`BinTable`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BinRoot([u8; 32]);
+pub struct BinRoot([u8; FIELD_BYTE_LEN]);
 
 impl BinRoot {
     /// Big-endian.
     #[must_use]
-    pub fn to_bytes(self) -> [u8; 32] {
+    pub fn to_bytes(self) -> [u8; FIELD_BYTE_LEN] {
         self.0
     }
 
     /// `None` unless a field element below the BN254 scalar modulus.
     #[must_use]
-    pub fn from_bytes(bytes: [u8; 32]) -> Option<Self> {
+    pub fn from_bytes(bytes: [u8; FIELD_BYTE_LEN]) -> Option<Self> {
         let root = Self::from_field(Fr::from_be_bytes_mod_order(&bytes));
         (root.0 == bytes).then_some(root)
     }
@@ -138,7 +155,7 @@ impl Membership {
             brand: 0,
             commercial: false,
             slot: 0,
-            siblings: vec![Fr::zero(); DEPTH],
+            siblings: vec![Fr::zero(); TREE_DEPTH],
         }
     }
 }
@@ -162,17 +179,17 @@ impl Change {
     /// Whether this change alone turns root `old` into `new`.
     #[must_use]
     pub fn verify(&self, old: BinRoot, new: BinRoot) -> bool {
-        self.siblings.len() == DEPTH
+        self.siblings.len() == TREE_DEPTH
             && BinRoot::from_field(root_of(self.slot, self.old_leaf, &self.siblings)) == old
             && BinRoot::from_field(root_of(self.slot, self.new_leaf, &self.siblings)) == new
     }
 }
 
-/// Disjoint PAN prefix ranges with card attributes, one per leaf of a Merkle tree of depth 24.
+/// Disjoint PAN prefix ranges with card attributes, one per leaf of a binary Merkle tree.
 ///
-/// Leaf, from bit 0: `low` (40 bits), `high` (40), country (10), type (2: credit 1, debit 2,
-/// prepaid 3), brand index + 1 (8), commercial (1), version 1. Empty leaf: 0. Node:
-/// noir-lang/poseidon v0.3.0 Poseidon2 of both children.
+/// Leaf, from bit 0: `low`, `high`, country, type (credit 1, debit 2, prepaid 3), brand index + 1,
+/// commercial, version 1, each at the circuits' width. Empty leaf: 0. Node: noir-lang/poseidon
+/// v0.3.0 Poseidon2 of both children.
 #[derive(Clone, Debug)]
 pub struct BinTable {
     other_keys: Map<String, Value>,
@@ -196,7 +213,7 @@ impl BinTable {
         self.slots.get(slot).and_then(Option::as_ref)
     }
 
-    /// The slot and range holding `prefix`, the PAN's first [`PREFIX_DIGITS`] digits.
+    /// The slot and range holding `prefix`, the PAN's first [`PAN_PREFIX_DIGIT_COUNT`] digits.
     #[must_use]
     pub fn find(&self, prefix: u64) -> Option<(usize, &Range)> {
         let (_, &slot) = self.by_low.range(..=prefix).next_back()?;
@@ -234,7 +251,7 @@ impl BinTable {
     pub fn insert(&mut self, range: Range) -> Result<Change> {
         self.check(&range, None)?;
         let slot = self.free.first().copied().unwrap_or(self.slots.len());
-        if slot >= SLOTS {
+        if slot >= SLOT_COUNT {
             return Err(Error::BinTable("table is full"));
         }
         self.set(slot, Some(range))
@@ -323,7 +340,7 @@ impl BinTable {
     fn brand_code(&mut self, brand: &str) -> Result<u64> {
         let index = match self.brands.iter().position(|b| b == brand) {
             Some(i) => i,
-            None if self.brands.len() < MAX_BRANDS => {
+            None if self.brands.len() < MAX_BRAND_COUNT => {
                 self.brands.push(brand.to_owned());
                 self.brands.len().saturating_sub(1)
             }
@@ -335,10 +352,10 @@ impl BinTable {
 
 fn validate(range: &Range) -> Result<()> {
     let a = &range.attributes;
-    if range.low > range.high || range.high > MAX_PREFIX {
+    if range.low > range.high || range.high > MAX_PAN_PREFIX {
         return Err(Error::BinTable("range bounds must be 12-digit prefixes, low at most high"));
     }
-    if a.country == 0 || a.country > MAX_COUNTRY {
+    if a.country == 0 || u64::from(a.country) > MAX_COUNTRY_CODE {
         return Err(Error::BinTable("country must be an ISO 3166-1 numeric code"));
     }
     if a.brand.is_empty() {
@@ -351,15 +368,17 @@ fn validate(range: &Range) -> Result<()> {
 fn leaf(range: &Range, brand: u64) -> Fr {
     let a = &range.attributes;
     [
-        (u64::from(a.commercial), COMMERCIAL_BITS),
-        (brand, BRAND_BITS),
-        (a.card_type.code(), TYPE_BITS),
-        (u64::from(a.country), COUNTRY_BITS),
-        (range.high, PREFIX_BITS),
-        (range.low, PREFIX_BITS),
+        (u64::from(a.commercial), COMMERCIAL_FLAG_BIT_LEN),
+        (brand, BRAND_CODE_BIT_LEN),
+        (a.card_type.code(), CARD_TYPE_BIT_LEN),
+        (u64::from(a.country), COUNTRY_CODE_BIT_LEN),
+        (range.high, PAN_PREFIX_BIT_LEN),
+        (range.low, PAN_PREFIX_BIT_LEN),
     ]
     .into_iter()
-    .fold(Fr::from(VERSION), |acc, (value, bits)| acc * Fr::from(2u64).pow([bits]) + Fr::from(value))
+    .fold(Fr::from(LEAF_VERSION), |acc, (value, bits)| {
+        acc * Fr::from(BINARY_BASE).pow([u64::from(bits)]) + Fr::from(value)
+    })
 }
 
 #[cfg(test)]

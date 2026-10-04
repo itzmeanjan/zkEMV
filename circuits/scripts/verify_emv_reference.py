@@ -9,10 +9,52 @@ import hashlib
 import argparse
 from typing import Any
 
-HDR, TRL = 0x6A, 0xBC
-FMT_ISSUER, FMT_ICC = 0x02, 0x04
+from emv_layout import (
+    AIP_TAG_LIST,
+    BER_LENGTH_BYTE_LEN,
+    BER_LENGTH_COUNT_MASK,
+    BER_LONG_LENGTH_FLAG,
+    BER_TAG_BYTE_LEN,
+    BODY_OFFSET,
+    DYNAMIC_DATA_BYTE_LEN_OFFSET,
+    DYNAMIC_DATA_OFFSET,
+    FMT_ICC_CERT,
+    FMT_ISSUER_CERT,
+    FMT_SDAD,
+    FORMAT_OFFSET,
+    HASH_AND_TRAILER_BYTE_LEN,
+    HASH_BYTE_LEN,
+    HEADER_OFFSET,
+    ICC_EXPIRY_OFFSET,
+    ICC_EXPONENT_BYTE_LEN_OFFSET,
+    ICC_HASH_ALG_OFFSET,
+    ICC_KEY_BYTE_LEN_OFFSET,
+    ICC_KEY_OFFSET,
+    ICC_PAN_OFFSET,
+    ICC_PK_ALG_OFFSET,
+    ICC_SERIAL_OFFSET,
+    EXPIRY_BYTE_LEN,
+    ISSUER_EXPIRY_OFFSET,
+    ISSUER_EXPONENT_BYTE_LEN_OFFSET,
+    ISSUER_HASH_ALG_OFFSET,
+    ISSUER_ID_BYTE_LEN,
+    ISSUER_ID_OFFSET,
+    ISSUER_KEY_BYTE_LEN_OFFSET,
+    ISSUER_KEY_OFFSET,
+    ISSUER_PK_ALG_OFFSET,
+    ISSUER_SERIAL_OFFSET,
+    NIBBLE_PAD,
+    NIBBLES_PER_BYTE,
+    PAN_BYTE_LEN,
+    RECORD_TEMPLATE_TAG,
+    RECOVERED_DATA_HEADER,
+    RECOVERED_DATA_TRAILER,
+    SDAD_HASH_ALG_OFFSET,
+    SERIAL_BYTE_LEN,
+    STATUS_WORD_BYTE_LEN,
+)
 
-FMT_SDAD = {0x05: "DDA (Book 2)", 0x95: "fDDA (Visa kernel)"}
+RULE_WIDTH = 74
 
 OK, BAD, INFO = "  ok ", " FAIL", "     "
 
@@ -26,6 +68,15 @@ CA_PUBKEYS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."
 
 def h2b(s: str | None) -> bytes:
     return bytes.fromhex(s) if s else b""
+
+
+def field(m: bytes, offset: int, length: int) -> bytes:
+    return m[offset : offset + length]
+
+
+def mmyy(expiry: bytes) -> str:
+    digits = expiry.hex()
+    return f"{digits[:NIBBLES_PER_BYTE]}/{digits[NIBBLES_PER_BYTE:]}"
 
 
 def load_CA_pubkeys(path: str) -> CAKeys:
@@ -50,9 +101,9 @@ def recover(sig: bytes, modulus: bytes, exponent: bytes) -> tuple[bytes | None, 
     if s >= n:
         return None, "signature >= modulus"
     m = pow(s, e, n).to_bytes(len(modulus), "big")
-    if m[0] != HDR:
+    if m[HEADER_OFFSET] != RECOVERED_DATA_HEADER:
         return None, f"header is {m[0]:02X}, expected 6A"
-    if m[-1] != TRL:
+    if m[-1] != RECOVERED_DATA_TRAILER:
         return None, f"trailer is {m[-1]:02X}, expected BC"
     return m, None
 
@@ -66,25 +117,25 @@ def verify_issuer_cert(cert: bytes, capk_mod: bytes, capk_exp: bytes, remainder:
     m, err = recover(cert, capk_mod, capk_exp)
     if m is None:
         return None, err
-    if m[1] != FMT_ISSUER:
-        return None, f"certificate format {m[1]:02X}, expected 02"
+    if m[FORMAT_OFFSET] != FMT_ISSUER_CERT:
+        return None, f"certificate format {m[FORMAT_OFFSET]:02X}, expected {FMT_ISSUER_CERT:02X}"
 
-    n_ca = len(capk_mod)
-    issuer_id = m[2:6].hex().upper().rstrip("F")
-    expiry = m[6:8].hex()
-    serial = m[8:11].hex().upper()
-    hash_alg, pk_alg = m[11], m[12]
-    pk_len, pk_exp_len = m[13], m[14]
-    leftmost = m[15 : n_ca - 21]
-    hash_result = m[n_ca - 21 : n_ca - 1]
+    hash_at = len(capk_mod) - HASH_AND_TRAILER_BYTE_LEN
+    issuer_id = field(m, ISSUER_ID_OFFSET, ISSUER_ID_BYTE_LEN).hex().upper().rstrip(NIBBLE_PAD)
+    expiry = field(m, ISSUER_EXPIRY_OFFSET, EXPIRY_BYTE_LEN)
+    serial = field(m, ISSUER_SERIAL_OFFSET, SERIAL_BYTE_LEN).hex().upper()
+    hash_alg, pk_alg = m[ISSUER_HASH_ALG_OFFSET], m[ISSUER_PK_ALG_OFFSET]
+    pk_len, pk_exp_len = m[ISSUER_KEY_BYTE_LEN_OFFSET], m[ISSUER_EXPONENT_BYTE_LEN_OFFSET]
+    leftmost = m[ISSUER_KEY_OFFSET:hash_at]
+    hash_result = field(m, hash_at, HASH_BYTE_LEN)
 
-    calc = hashlib.sha1(m[1 : n_ca - 21] + remainder + exponent).digest()
+    calc = hashlib.sha1(m[BODY_OFFSET:hash_at] + remainder + exponent).digest()
     if calc != hash_result:
         return None, "hash mismatch over recovered issuer certificate"
 
     return {
         "issuer_id": issuer_id,
-        "expiry": f"{expiry[:2]}/{expiry[2:]}",
+        "expiry": mmyy(expiry),
         "serial": serial,
         "hash_alg": hash_alg,
         "pk_alg": pk_alg,
@@ -100,23 +151,23 @@ def verify_icc_cert(cert: bytes, iss_mod: bytes, iss_exp: bytes, remainder: byte
     m, err = recover(cert, iss_mod, iss_exp)
     if m is None:
         return None, err
-    if m[1] != FMT_ICC:
-        return None, f"certificate format {m[1]:02X}, expected 04"
+    if m[FORMAT_OFFSET] != FMT_ICC_CERT:
+        return None, f"certificate format {m[FORMAT_OFFSET]:02X}, expected {FMT_ICC_CERT:02X}"
 
-    n_i = len(iss_mod)
-    pan = m[2:12].hex().upper().rstrip("F")
-    expiry = m[12:14].hex()
-    serial = m[14:17].hex().upper()
-    hash_alg, pk_alg = m[17], m[18]
-    pk_len, pk_exp_len = m[19], m[20]
-    leftmost = m[21 : n_i - 21]
-    hash_result = m[n_i - 21 : n_i - 1]
+    hash_at = len(iss_mod) - HASH_AND_TRAILER_BYTE_LEN
+    pan = field(m, ICC_PAN_OFFSET, PAN_BYTE_LEN).hex().upper().rstrip(NIBBLE_PAD)
+    expiry = field(m, ICC_EXPIRY_OFFSET, EXPIRY_BYTE_LEN)
+    serial = field(m, ICC_SERIAL_OFFSET, SERIAL_BYTE_LEN).hex().upper()
+    hash_alg, pk_alg = m[ICC_HASH_ALG_OFFSET], m[ICC_PK_ALG_OFFSET]
+    pk_len, pk_exp_len = m[ICC_KEY_BYTE_LEN_OFFSET], m[ICC_EXPONENT_BYTE_LEN_OFFSET]
+    leftmost = m[ICC_KEY_OFFSET:hash_at]
+    hash_result = field(m, hash_at, HASH_BYTE_LEN)
 
-    calc = hashlib.sha1(m[1 : n_i - 21] + remainder + exponent + static_data).digest()
+    calc = hashlib.sha1(m[BODY_OFFSET:hash_at] + remainder + exponent + static_data).digest()
 
     return {
         "pan": pan,
-        "expiry": f"{expiry[:2]}/{expiry[2:]}",
+        "expiry": mmyy(expiry),
         "serial": serial,
         "hash_alg": hash_alg,
         "pk_alg": pk_alg,
@@ -132,16 +183,16 @@ def verify_sdad(sdad: bytes, icc_mod: bytes, icc_exp: bytes, terminal_data_candi
     m, err = recover(sdad, icc_mod, icc_exp)
     if m is None:
         return None, err
-    if m[1] not in FMT_SDAD:
-        return None, (f"signed data format {m[1]:02X}, expected one of " + "/".join(f"{k:02X}" for k in FMT_SDAD))
+    if m[FORMAT_OFFSET] not in FMT_SDAD:
+        return None, (f"signed data format {m[FORMAT_OFFSET]:02X}, expected one of " + "/".join(f"{k:02X}" for k in FMT_SDAD))
 
-    n_ic = len(icc_mod)
-    fmt = FMT_SDAD[m[1]]
-    hash_alg = m[2]
-    ldd = m[3]
-    icc_dynamic = m[4 : 4 + ldd]
-    hash_result = m[n_ic - 21 : n_ic - 1]
-    body = m[1 : n_ic - 21]
+    hash_at = len(icc_mod) - HASH_AND_TRAILER_BYTE_LEN
+    fmt = FMT_SDAD[m[FORMAT_OFFSET]]
+    hash_alg = m[SDAD_HASH_ALG_OFFSET]
+    ldd = m[DYNAMIC_DATA_BYTE_LEN_OFFSET]
+    icc_dynamic = field(m, DYNAMIC_DATA_OFFSET, ldd)
+    hash_result = field(m, hash_at, HASH_BYTE_LEN)
+    body = m[BODY_OFFSET:hash_at]
 
     matched = None
     for name, td in terminal_data_candidates:
@@ -172,21 +223,20 @@ def static_data_to_authenticate(doc: Capture, els: Elements) -> bytes:
             ex = next((e for e in doc["exchanges"] if label in e["label"] and e["ok"]), None)
             if not ex:
                 continue
-            raw = h2b(ex["response"])[:-2]
-            if not raw or raw[0] != 0x70:
+            raw = h2b(ex["response"])[:-STATUS_WORD_BYTE_LEN]
+            if not raw or raw[0] != RECORD_TEMPLATE_TAG:
                 out += raw
                 continue
-            i, ln = 1, raw[1]
-            if ln > 0x80:
-                k = ln & 0x7F
-                ln = int.from_bytes(raw[2 : 2 + k], "big")
-                i = 2 + k
-            else:
-                i = 2
-            out += raw[i : i + ln]
+            ln = raw[BER_TAG_BYTE_LEN]
+            i = BER_TAG_BYTE_LEN + BER_LENGTH_BYTE_LEN
+            if ln > BER_LONG_LENGTH_FLAG:
+                k = ln & BER_LENGTH_COUNT_MASK
+                ln = int.from_bytes(field(raw, i, k), "big")
+                i += k
+            out += field(raw, i, ln)
 
     tag_list = h2b(els.get("9F4A", {}).get("value"))
-    if tag_list == b"\x82":
+    if tag_list == AIP_TAG_LIST:
         out += h2b(els.get("82", {}).get("value"))
     return out
 
@@ -197,9 +247,9 @@ def run(path: str, capks: CAKeys) -> bool:
     aid = doc.get("selectedAid") or ""
     rid = aid[:10].upper()
     idx_el = els.get("8F")
-    print("=" * 74)
+    print("=" * RULE_WIDTH)
     print(f"{path.split('/')[-1]}   AID {aid}")
-    print("=" * 74)
+    print("=" * RULE_WIDTH)
     if not idx_el or "90" not in els or "9F46" not in els:
         print(f"{INFO}incomplete capture: no chain to verify")
         return False
