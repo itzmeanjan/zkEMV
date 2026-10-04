@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
@@ -18,7 +19,6 @@ TODAY = 2609  # YYMM, pinned so the committed outputs don't change every month
 SCOPE = 0x5C09E  # any field element; the emv crate derives real ones
 
 LIMB_BITS = 120
-MAX_STATIC_DATA_LEN = 256  # mastercard_dda's MAX_STATIC_DATA_LEN
 
 Inputs = dict[str, Any]
 
@@ -33,6 +33,14 @@ def limbs(modulus: bytes) -> list[int]:
     """120-bit little-endian limbs."""
     n, count = int.from_bytes(modulus, "big"), (len(modulus) * 8 + LIMB_BITS - 1) // LIMB_BITS
     return [(n >> (LIMB_BITS * i)) & ((1 << LIMB_BITS) - 1) for i in range(count)]
+
+
+def circuit_global(pkg: str, name: str) -> int:
+    main_nr = open(os.path.join(ROOT, pkg, "src", "main.nr")).read()
+    match = re.search(rf"^global {name}: u32 = (\d+);$", main_nr, re.MULTILINE)
+    if match is None:
+        raise SystemExit(f"{pkg}/src/main.nr: no global {name}")
+    return int(match.group(1))
 
 
 def fail(pkg: str, what: str) -> NoReturn:
@@ -91,8 +99,9 @@ def circuit_inputs(pkg: str, capks: vc.CAKeys, table: dict[str, Any], tree: list
     if pkg == "visa_fdda":
         x.update(amount=list(amount), currency=list(currency), card_auth_data=list(h("9F69")))
     else:
-        assert len(static) <= MAX_STATIC_DATA_LEN
-        x.update(issuer_remainder=list(h("92")), static_data={"storage": list(static) + [0] * (MAX_STATIC_DATA_LEN - len(static)), "len": len(static)})
+        capacity = circuit_global(pkg, "STATIC_DATA_MAX_BYTE_LEN")
+        assert len(static) <= capacity
+        x.update(issuer_remainder=list(h("92")), static_data={"storage": list(static) + [0] * (capacity - len(static)), "len": len(static)})
 
     x["today"] = TODAY
     x["scope"] = SCOPE

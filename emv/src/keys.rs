@@ -92,7 +92,7 @@ impl ProvingKey {
                 table.membership(pan::prefix(card, ca.modulus())?).ok_or(Error::UnknownBin)?
             }
         };
-        let inputs = input_map(challenge.fields(), ca.modulus(), scope, card, &membership)?;
+        let inputs = input_map(self.prover.witness_generator.abi(), challenge.fields(), ca.modulus(), scope, card, &membership)?;
         provekit(|| self.prover.clone().prove(inputs)).map(Proof)
     }
 

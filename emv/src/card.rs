@@ -40,7 +40,7 @@ pub struct MastercardDda {
     pub icc_cert: Vec<u8>,
     /// `9F47`, from READ RECORD. Must be 3.
     pub icc_exponent: u8,
-    /// Static data to be authenticated (EMV Book 3, 10.3). At most 256 bytes. The template
+    /// Static data to be authenticated (EMV Book 3, 10.3). At most the circuit's `STATIC_DATA_MAX_BYTE_LEN` bytes. The template
     /// `70` value of each record that the AFL marks for offline data authentication, in AFL
     /// order, then the AIP `82` if `9F4A` is `82`.
     pub static_data: Vec<u8>,

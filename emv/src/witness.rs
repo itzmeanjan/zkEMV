@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use acir::AcirField;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField, Zero};
-use noirc_abi::{Abi, InputMap, input_parser::InputValue};
+use noirc_abi::{Abi, AbiType, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
@@ -12,8 +12,6 @@ use crate::{Card, Error, Result, bin_table::Membership, challenge::Fields};
 
 const LIMB_BITS: usize = 120;
 const LIMB_BASE: u128 = 1 << LIMB_BITS;
-/// `mastercard_dda`'s `MAX_STATIC_DATA_LEN`.
-const MAX_STATIC_DATA_LEN: u16 = 256;
 
 pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr) -> Result<InputMap> {
     let scheme = challenge.scheme;
@@ -35,7 +33,7 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr)
     Ok(map)
 }
 
-pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card, bin: &Membership) -> Result<InputMap> {
+pub(crate) fn input_map(abi: &Abi, challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card, bin: &Membership) -> Result<InputMap> {
     let scheme = challenge.scheme;
     let mut map = public_input_map(challenge, ca_modulus, scope)?;
     map.insert("bin".to_owned(), membership(bin));
@@ -55,13 +53,14 @@ pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: 
             ("card_auth_data".to_owned(), bytes(&c.card_auth_data)),
         ]),
         Card::MastercardDda(c) => {
-            let len = u16::try_from(c.static_data.len())
+            let capacity = static_data_capacity(abi)?;
+            let len = u128::try_from(c.static_data.len())
                 .ok()
-                .filter(|&len| len <= MAX_STATIC_DATA_LEN)
-                .ok_or(Error::Card("static data exceeds the circuit's 256-byte bound"))?;
+                .filter(|_| c.static_data.len() <= capacity)
+                .ok_or(Error::Card("static data exceeds the circuit's bound"))?;
             let mut storage = c.static_data.clone();
-            storage.resize(MAX_STATIC_DATA_LEN.into(), 0);
-            let static_data = InputValue::Struct(BTreeMap::from([("storage".to_owned(), bytes(&storage)), ("len".to_owned(), field(len.into()))]));
+            storage.resize(capacity, 0);
+            let static_data = InputValue::Struct(BTreeMap::from([("storage".to_owned(), bytes(&storage)), ("len".to_owned(), field(len))]));
             map.extend([
                 ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
                 ("issuer_remainder".to_owned(), bytes(&c.issuer_remainder)),
@@ -85,6 +84,19 @@ pub(crate) fn public_inputs(abi: &Abi, map: &InputMap) -> Result<Vec<FieldElemen
         flatten(value, &mut out).ok_or_else(unknown)?;
     }
     Ok(out)
+}
+
+/// The storage length of the circuit's `static_data` bounded vector.
+fn static_data_capacity(abi: &Abi) -> Result<usize> {
+    let storage = abi.parameters.iter().find(|p| p.name == "static_data").and_then(|p| match &p.typ {
+        AbiType::Struct { fields, .. } => fields.iter().find(|(name, _)| name == "storage").map(|(_, typ)| typ),
+        _ => None,
+    });
+    match storage {
+        Some(AbiType::Array { length, .. }) => usize::try_from(*length).ok(),
+        _ => None,
+    }
+    .ok_or_else(|| Error::UnknownCircuit(abi.parameter_names().into_iter().cloned().collect()))
 }
 
 pub(crate) fn scope_offset(abi: &Abi) -> Result<usize> {

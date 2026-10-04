@@ -3,13 +3,9 @@
 mod tests;
 
 use emv::{
-    AMOUNT_AUTHORISED_BYTE_LEN, BinAttributes, BinMembership, BITS_PER_BYTE, CaKey, concat, CURRENCY_CODE_BYTE_LEN, FMT_SDAD_FDDA, LIMB_BYTE_LEN,
-    NONCE_BYTE_LEN,
+    AMOUNT_AUTHORISED_BYTE_LEN, BinAttributes, BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CA_PUBKEY_LIMB_COUNT, CaKey, concat, CURRENCY_CODE_BYTE_LEN,
+    FMT_SDAD_FDDA, NONCE_BYTE_LEN,
 };
-
-global CA_PUBKEY_BIT_LEN: u32 = 1984;
-global CA_PUBKEY_BYTE_LEN: u32 = CA_PUBKEY_BIT_LEN / BITS_PER_BYTE;
-global CA_PUBKEY_LIMB_COUNT: u32 = (CA_PUBKEY_BYTE_LEN + LIMB_BYTE_LEN - 1) / LIMB_BYTE_LEN;
 
 global ISSUER_PUBKEY_BIT_LEN: u32 = 1408;
 global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
@@ -81,7 +77,7 @@ fn verify(x: Inputs) -> (BinAttributes, Field) {
         concat(concat(x.nonce, x.amount), x.currency),
         x.card_auth_data,
     );
-    let card = CaKey::<CA_PUBKEY_BYTE_LEN>::from_limbs(x.ca_modulus)
+    let card = CaKey::from_limbs(x.ca_modulus)
         .recover_issuer_cert(x.issuer_cert)
         .verify::<ISSUER_PUBKEY_BYTE_LEN, _>([], x.issuer_exponent, x.today)
         .key()

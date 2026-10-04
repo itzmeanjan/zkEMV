@@ -1,4 +1,4 @@
-use crate::{bytes::{bit_length, BITS_PER_BYTE, DECIMAL_BASE, MAX_DECIMAL_DIGIT, nibbles, NIBBLES_PER_BYTE, pow10, pow2}, PAN_BYTE_LEN};
+use crate::{bytes::{bit_length, BITS_PER_BYTE, DECIMAL_BASE, MAX_DECIMAL_DIGIT, nibbles, NIBBLES_PER_BYTE, pow10, pow2}, card_chain::PAN_BYTE_LEN};
 use poseidon::poseidon2::Poseidon2;
 
 /// The emv crate's `BinTable`: 2^TREE_DEPTH leaves.
