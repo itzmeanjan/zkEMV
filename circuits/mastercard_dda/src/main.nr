@@ -38,7 +38,7 @@ pub struct Inputs {
 fn main(
     // The verifier must check this is in its CA table.
     ca_modulus: pub [Field; CA_N],
-    // Unpredictable Number (9F37): the verifier's challenge, and the whole DDOL.
+    // Nonce (9F37): the verifier's challenge, and the whole DDOL.
     nonce: pub [u8; 4],
     // YYMM
     today: pub u32,

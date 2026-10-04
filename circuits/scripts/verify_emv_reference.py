@@ -259,7 +259,8 @@ def run(path: str, capks: CAKeys) -> bool:
         print(f"{INFO}no 9F4B in this capture; nothing dynamic to check")
         return True
 
-    un = bytes(doc["terminal"]["unpredictableNumber"])
+    # The reader app's captures name it unpredictableNumber.
+    nonce = bytes(doc["terminal"].get("nonce", doc["terminal"].get("unpredictableNumber", [])))
     amount = bytes(doc["terminal"]["amountAuthorised"])
     currency = bytes(doc["terminal"]["currencyCode"])
     country = bytes(doc["terminal"]["countryCode"])
@@ -267,12 +268,12 @@ def run(path: str, capks: CAKeys) -> bool:
     card_auth = h2b(els.get("9F69", {}).get("value"))
 
     cands_td = [
-        ("9F37 (DDA, default DDOL)", un),
-        ("9F37 || 9F02 || 5F2A || 9F69 (Visa fDDA)", un + amount + currency + card_auth),
-        ("9F37 || 9F02 || 5F2A", un + amount + currency),
-        ("9F02 || 5F2A || 9F37", amount + currency + un),
-        ("9F37 || 9F02 || 5F2A || 9F1A", un + amount + currency + country),
-        ("9F37 || 9F66", un + ttq),
+        ("9F37 (DDA, default DDOL)", nonce),
+        ("9F37 || 9F02 || 5F2A || 9F69 (Visa fDDA)", nonce + amount + currency + card_auth),
+        ("9F37 || 9F02 || 5F2A", nonce + amount + currency),
+        ("9F02 || 5F2A || 9F37", amount + currency + nonce),
+        ("9F37 || 9F02 || 5F2A || 9F1A", nonce + amount + currency + country),
+        ("9F37 || 9F66", nonce + ttq),
         ("(none)", b""),
     ]
 
@@ -285,12 +286,12 @@ def run(path: str, capks: CAKeys) -> bool:
     if sd["matched"]:
         name, td = sd["matched"]
         print(f"{OK} SIGNATURE HASH VERIFIES over {name}")
-        nonce_hex = un.hex().upper()
-        covered = un in td
+        nonce_hex = nonce.hex().upper()
+        covered = nonce in td
         print(f"{OK if covered else BAD}   our nonce {nonce_hex} " f"{'IS' if covered else 'is NOT'} covered by the signature")
     else:
         print(f"{INFO}hash did not match any candidate terminal-data layout")
-        print(f"{INFO}  nonce sent: {un.hex().upper()}")
+        print(f"{INFO}  nonce sent: {nonce.hex().upper()}")
         print(f"{INFO}  ICC dynamic data: {sd['icc_dynamic'].hex().upper()}")
         print(f"{INFO}  (kernel-specific layout; recovery itself still succeeded)")
     return True

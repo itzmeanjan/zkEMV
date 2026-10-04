@@ -72,15 +72,15 @@ def circuit_inputs(pkg: str, capks: vc.CAKeys, table: dict[str, Any], tree: list
         fail(pkg, "ICC certificate")
 
     t = doc["terminal"]
-    un, amount, currency = (bytes(t[k]) for k in ("unpredictableNumber", "amountAuthorised", "currencyCode"))
-    td = un + amount + currency + h("9F69") if pkg == "visa_fdda" else un
+    nonce, amount, currency = (bytes(t[k]) for k in ("nonce", "amountAuthorised", "currencyCode"))
+    td = nonce + amount + currency + h("9F69") if pkg == "visa_fdda" else nonce
     sd, _ = vc.verify_sdad(h("9F4B"), icc["modulus"], icc["exponent"], [("", td)])
     if not sd or not sd["matched"]:
         fail(pkg, "signed dynamic data")
 
     x = {
         "ca_modulus": limbs(ca),
-        "nonce": list(un),
+        "nonce": list(nonce),
         "issuer_cert": list(h("90")),
         "issuer_exponent": h("9F32")[0],
         "icc_cert": list(h("9F46")),

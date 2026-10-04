@@ -1,9 +1,9 @@
-use crate::bin_table::{bin_attributes, BinMembership, DEPTH, leaf, root_of};
+use crate::bin_table::{bin_attributes, BinMembership, leaf, root_of, TREE_DEPTH};
 use poseidon::poseidon2::Poseidon2;
 
-fn empty_roots() -> [Field; DEPTH] {
-    let mut roots = [0; DEPTH];
-    for i in 1..DEPTH {
+fn empty_roots() -> [Field; TREE_DEPTH] {
+    let mut roots = [0; TREE_DEPTH];
+    for i in 1..TREE_DEPTH {
         roots[i] = Poseidon2::hash([roots[i - 1], roots[i - 1]], 2);
     }
     roots
@@ -72,7 +72,7 @@ fn range_bounds_are_inclusive() {
 
 #[test]
 fn nothing_disclosed_checks_nothing() {
-    let zero = BinMembership { low: 0, high: 0, country: 0, card_type: 0, brand: 0, commercial: false, slot: 0, siblings: [0; DEPTH] };
+    let zero = BinMembership { low: 0, high: 0, country: 0, card_type: 0, brand: 0, commercial: false, slot: 0, siblings: [0; TREE_DEPTH] };
     let a = bin_attributes([0xFF; 10], 12345, 0, zero);
     assert_eq((a.country, a.card_type, a.brand, a.commercial), (0, 0, 0, false));
 }

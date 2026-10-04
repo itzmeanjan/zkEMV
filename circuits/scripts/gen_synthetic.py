@@ -228,9 +228,9 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         "countryCode": [0x08, 0x40],
         "currencyCode": [0x08, 0x40],
         "amountAuthorised": [0] * 6,
-        "unpredictableNumber": list(rng.randbytes(4)),
+        "nonce": list(rng.randbytes(4)),
     }
-    un = bytes(terminal["unpredictableNumber"])
+    nonce = bytes(terminal["nonce"])
     elements = [
         element("82", aip, "GPO"),
         element("8F", bytes.fromhex(CA_INDEX), "READ RECORD"),
@@ -248,7 +248,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
         dynamic = bytes([len(atc)]) + atc
         # Card Authentication Related Data: fDDA version, card UN, CTQ.
         card_auth = b"\x01" + rng.randbytes(4) + b"\x00\x00"
-        td = un + bytes(terminal["amountAuthorised"]) + bytes(terminal["currencyCode"]) + card_auth
+        td = nonce + bytes(terminal["amountAuthorised"]) + bytes(terminal["currencyCode"]) + card_auth
         # PDOL as on the Visa corpus cards: 9F66 9F02 9F03 9F1A 95 5F2A 9A 9C 9F37.
         pdol = bytes.fromhex("9F66049F02069F03069F1A0295055F2A029A039C019F3704")
         elements += [
@@ -259,7 +259,7 @@ def synthesize(pkg: str, kind: Kind, ca: RsaKey, rng: random.Random) -> dict[str
     else:
         icc_dynamic_number = rng.randbytes(8)
         dynamic = bytes([len(icc_dynamic_number)]) + icc_dynamic_number
-        td = un
+        td = nonce
         elements.append(element("9F4A", b"\x82", "READ RECORD"))
 
     elements.append(element("9F4B", sdad(icc, kind["sdad_format"], dynamic, td), kind["sdad_source"]))

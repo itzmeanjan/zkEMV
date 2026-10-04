@@ -3,61 +3,56 @@
 mod tests;
 
 use emv::{
-    assert_issuer_id_matches_pan, assert_not_expired, bin_attributes, BinAttributes, BinMembership, FMT_SDAD_FDDA, nullifier, RsaKey, verify_icc_cert,
-    verify_issuer_cert, verify_sdad,
+    AMOUNT_AUTHORISED_BYTE_LEN, assert_issuer_id_matches_pan, assert_not_expired, bin_attributes, BinAttributes, BinMembership, BITS_PER_BYTE, concat,
+    CURRENCY_CODE_BYTE_LEN, FMT_SDAD_FDDA, LIMB_BYTE_LEN, NONCE_BYTE_LEN, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad,
 };
 
-global CA_BITS: u32 = 1984;
-/// 120-bit limbs of the CA modulus.
-global CA_N: u32 = 17;
-global ISSUER_BITS: u32 = 1408;
-global ICC_BITS: u32 = 1024;
+global CA_PUBKEY_BIT_LEN: u32 = 1984;
+global CA_PUBKEY_BYTE_LEN: u32 = CA_PUBKEY_BIT_LEN / BITS_PER_BYTE;
+global CA_PUBKEY_LIMB_COUNT: u32 = (CA_PUBKEY_BYTE_LEN + LIMB_BYTE_LEN - 1) / LIMB_BYTE_LEN;
 
-/// Card Authentication Related Data (`9F69`) on the Visa cards in the corpus.
-global CARD_AUTH_LEN: u32 = 7;
-/// fDDA terminal data: `9F37 || 9F02 || 5F2A || 9F69`.
-global TERMINAL_DATA_LEN: u32 = 4 + 6 + 2 + CARD_AUTH_LEN;
+global ISSUER_PUBKEY_BIT_LEN: u32 = 1408;
+global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
+
+global ICC_PUBKEY_BIT_LEN: u32 = 1024;
+global ICC_PUBKEY_BYTE_LEN: u32 = ICC_PUBKEY_BIT_LEN / BITS_PER_BYTE;
+
+global CARD_AUTH_DATA_BYTE_LEN: u32 = 7;
+global STATIC_DATA_MAX_BYTE_LEN: u32 = 0;
 
 pub struct Inputs {
-    pub ca_modulus: [Field; CA_N],
-    pub nonce: [u8; 4],
-    pub amount: [u8; 6],
-    pub currency: [u8; 2],
+    pub ca_modulus: [Field; CA_PUBKEY_LIMB_COUNT],
+    pub nonce: [u8; NONCE_BYTE_LEN],
+    pub amount: [u8; AMOUNT_AUTHORISED_BYTE_LEN],
+    pub currency: [u8; CURRENCY_CODE_BYTE_LEN],
     pub today: u32,
     pub scope: Field,
     pub bin_root: Field,
     pub disclose: u8,
-    pub issuer_cert: [u8; CA_BITS / 8],
+    pub issuer_cert: [u8; CA_PUBKEY_BYTE_LEN],
     pub issuer_exponent: u8,
-    pub icc_cert: [u8; ISSUER_BITS / 8],
+    pub icc_cert: [u8; ISSUER_PUBKEY_BYTE_LEN],
     pub icc_exponent: u8,
-    pub sdad: [u8; ICC_BITS / 8],
-    pub card_auth_data: [u8; CARD_AUTH_LEN],
+    pub sdad: [u8; ICC_PUBKEY_BYTE_LEN],
+    pub card_auth_data: [u8; CARD_AUTH_DATA_BYTE_LEN],
     pub bin: BinMembership,
 }
 
 fn main(
-    // The verifier must check this is in its CA table.
-    ca_modulus: pub [Field; CA_N],
-    // Unpredictable Number (9F37): the verifier's challenge.
-    nonce: pub [u8; 4],
-    // Amount Authorised (9F02) and Transaction Currency Code (5F2A) sent in the PDOL.
-    amount: pub [u8; 6],
-    currency: pub [u8; 2],
-    // YYMM
+    ca_modulus: pub [Field; CA_PUBKEY_LIMB_COUNT],
+    nonce: pub [u8; NONCE_BYTE_LEN],
+    amount: pub [u8; AMOUNT_AUTHORISED_BYTE_LEN],
+    currency: pub [u8; CURRENCY_CODE_BYTE_LEN],
     today: pub u32,
-    // Chosen by the verifier, or at random by the prover when the verifier needs no nullifier.
     scope: pub Field,
-    // Root of the verifier's BIN table (emv crate's `BinTable`).
     bin_root: pub Field,
-    // Attributes to reveal, see `emv::bin_attributes`.
     disclose: pub u8,
-    issuer_cert: [u8; CA_BITS / 8], // 90
+    issuer_cert: [u8; CA_PUBKEY_BYTE_LEN], // 90
     issuer_exponent: u8, // 9F32
-    icc_cert: [u8; ISSUER_BITS / 8], // 9F46
+    icc_cert: [u8; ISSUER_PUBKEY_BYTE_LEN], // 9F46
     icc_exponent: u8, // 9F47
-    sdad: [u8; ICC_BITS / 8], // 9F4B
-    card_auth_data: [u8; CARD_AUTH_LEN], // 9F69
+    sdad: [u8; ICC_PUBKEY_BYTE_LEN], // 9F4B
+    card_auth_data: [u8; CARD_AUTH_DATA_BYTE_LEN], // 9F69
     bin: BinMembership,
 ) -> pub (BinAttributes, Field) {
     verify(
@@ -82,36 +77,27 @@ fn main(
 }
 
 fn verify(x: Inputs) -> (BinAttributes, Field) {
-    let ca_key = RsaKey::<CA_BITS / 8>::from_limbs(x.ca_modulus);
+    let ca_key = RsaKey::<CA_PUBKEY_BYTE_LEN>::from_limbs(x.ca_modulus);
 
-    let issuer = verify_issuer_cert::<_, ISSUER_BITS / 8, _>(ca_key.recover(x.issuer_cert), [], x.issuer_exponent);
-    let issuer_key: RsaKey<ISSUER_BITS / 8> = RsaKey::from_be_bytes(issuer.modulus);
+    let issuer = verify_issuer_cert::<_, ISSUER_PUBKEY_BYTE_LEN, _>(ca_key.recover(x.issuer_cert), [], x.issuer_exponent);
+    let issuer_key = RsaKey::<ISSUER_PUBKEY_BYTE_LEN>::from_be_bytes(issuer.modulus);
 
-    let icc = verify_icc_cert::<_, ICC_BITS / 8, _, _>(
+    let icc = verify_icc_cert::<_, ICC_PUBKEY_BYTE_LEN, _, _>(
         issuer_key.recover(x.icc_cert),
         [],
         x.icc_exponent,
-        BoundedVec::<u8, 0>::new(),
+        BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(),
     );
-    let icc_key: RsaKey<ICC_BITS / 8> = RsaKey::from_be_bytes(icc.modulus);
+    let icc_key = RsaKey::<ICC_PUBKEY_BYTE_LEN>::from_be_bytes(icc.modulus);
 
     assert_issuer_id_matches_pan(issuer.issuer_id, icc.pan);
     assert_not_expired(issuer.expiry, x.today);
     assert_not_expired(icc.expiry, x.today);
 
-    let mut terminal_data = [0; TERMINAL_DATA_LEN];
-    for i in 0..4 {
-        terminal_data[i] = x.nonce[i];
-    }
-    for i in 0..6 {
-        terminal_data[4 + i] = x.amount[i];
-    }
-    for i in 0..2 {
-        terminal_data[10 + i] = x.currency[i];
-    }
-    for i in 0..CARD_AUTH_LEN {
-        terminal_data[12 + i] = x.card_auth_data[i];
-    }
+    let terminal_data = concat(
+        concat(concat(x.nonce, x.amount), x.currency),
+        x.card_auth_data,
+    );
     verify_sdad(icc_key.recover(x.sdad), FMT_SDAD_FDDA, terminal_data);
 
     (bin_attributes(icc.pan, x.bin_root, x.disclose, x.bin), nullifier(icc.modulus, x.scope))

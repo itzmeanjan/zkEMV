@@ -325,7 +325,7 @@ impl<S> Challenge<S> {
         self.fields.scheme
     }
 
-    /// Unpredictable Number `9F37` for the tap.
+    /// Nonce `9F37` for the tap.
     #[must_use]
     pub fn nonce(&self) -> [u8; 4] {
         self.fields.nonce
