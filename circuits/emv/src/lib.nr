@@ -8,6 +8,7 @@
 
 mod bin_table;
 mod bytes;
+mod card_chain;
 mod nullifier;
 mod policy;
 mod rsa;
@@ -16,6 +17,7 @@ mod tests;
 
 pub use bin_table::{bin_attributes, BinAttributes, BinMembership};
 pub use bytes::{BITS_PER_BYTE, concat};
+pub use card_chain::{AuthenticatedCard, CaKey, IccCert, IccKey, IssuerCert, IssuerKey, RecoveredIccCert, RecoveredIssuerCert, RecoveredSdad};
 pub use nullifier::nullifier;
 
 pub use policy::{assert_issuer_id_matches_pan, assert_not_expired};
@@ -134,7 +136,7 @@ fn assemble_modulus<let L: u32, let K: u32, let REM: u32, let OFFSET: u32>(m: [u
     modulus
 }
 
-pub struct IssuerCert<let K: u32> {
+pub struct IssuerCertFields<let K: u32> {
     pub modulus: [u8; K],
     /// Leftmost 3-8 PAN digits, BCD, `F`-padded.
     pub issuer_id: [u8; ISSUER_ID_BYTE_LEN],
@@ -143,7 +145,7 @@ pub struct IssuerCert<let K: u32> {
 }
 
 /// Book 2 table 6.
-pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(m: [u8; L], remainder: [u8; REM], exponent: u8) -> IssuerCert<K> {
+pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(m: [u8; L], remainder: [u8; REM], exponent: u8) -> IssuerCertFields<K> {
     assert_envelope(m, FMT_ISSUER_CERT);
     assert_eq(m[ISSUER_HASH_ALG_OFFSET], HASH_ALG_SHA1, "issuer certificate hash algorithm is not SHA-1");
     assert_eq(m[ISSUER_PK_ALG_OFFSET], PK_ALG_RSA, "issuer key algorithm is not RSA");
@@ -154,14 +156,14 @@ pub fn verify_issuer_cert<let L: u32, let K: u32, let REM: u32>(m: [u8; L], rema
     let input = bytes::concat(bytes::concat(hashed_body(m), remainder), [exponent]);
     assert_hash(m, sha1::digest_words(input));
 
-    IssuerCert {
+    IssuerCertFields {
         modulus: assemble_modulus::<_, K, REM, ISSUER_KEY_OFFSET>(m, remainder),
         issuer_id: bytes::read(m, ISSUER_ID_OFFSET),
         expiry: bytes::read(m, ISSUER_EXPIRY_OFFSET),
     }
 }
 
-pub struct IccCert<let K: u32> {
+pub struct IccCertFields<let K: u32> {
     pub modulus: [u8; K],
     /// BCD, `F`-padded.
     pub pan: [u8; PAN_BYTE_LEN],
@@ -175,7 +177,7 @@ pub fn verify_icc_cert<let L: u32, let K: u32, let REM: u32, let S: u32>(
     remainder: [u8; REM],
     exponent: u8,
     static_data: BoundedVec<u8, S>,
-) -> IccCert<K> {
+) -> IccCertFields<K> {
     assert_envelope(m, FMT_ICC_CERT);
     assert_eq(m[ICC_HASH_ALG_OFFSET], HASH_ALG_SHA1, "ICC certificate hash algorithm is not SHA-1");
     assert_eq(m[ICC_PK_ALG_OFFSET], PK_ALG_RSA, "ICC key algorithm is not RSA");
@@ -191,7 +193,7 @@ pub fn verify_icc_cert<let L: u32, let K: u32, let REM: u32, let S: u32>(
     };
     assert_hash(m, digest);
 
-    IccCert {
+    IccCertFields {
         modulus: assemble_modulus::<_, K, REM, ICC_KEY_OFFSET>(m, remainder),
         pan: bytes::read(m, ICC_PAN_OFFSET),
         expiry: bytes::read(m, ICC_EXPIRY_OFFSET),

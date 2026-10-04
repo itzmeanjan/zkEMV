@@ -3,8 +3,8 @@
 mod tests;
 
 use emv::{
-    AMOUNT_AUTHORISED_BYTE_LEN, assert_issuer_id_matches_pan, assert_not_expired, bin_attributes, BinAttributes, BinMembership, BITS_PER_BYTE, concat,
-    CURRENCY_CODE_BYTE_LEN, FMT_SDAD_FDDA, LIMB_BYTE_LEN, NONCE_BYTE_LEN, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad,
+    AMOUNT_AUTHORISED_BYTE_LEN, BinAttributes, BinMembership, BITS_PER_BYTE, CaKey, concat, CURRENCY_CODE_BYTE_LEN, FMT_SDAD_FDDA, LIMB_BYTE_LEN,
+    NONCE_BYTE_LEN,
 };
 
 global CA_PUBKEY_BIT_LEN: u32 = 1984;
@@ -77,28 +77,19 @@ fn main(
 }
 
 fn verify(x: Inputs) -> (BinAttributes, Field) {
-    let ca_key = RsaKey::<CA_PUBKEY_BYTE_LEN>::from_limbs(x.ca_modulus);
-
-    let issuer = verify_issuer_cert::<_, ISSUER_PUBKEY_BYTE_LEN, _>(ca_key.recover(x.issuer_cert), [], x.issuer_exponent);
-    let issuer_key = RsaKey::<ISSUER_PUBKEY_BYTE_LEN>::from_be_bytes(issuer.modulus);
-
-    let icc = verify_icc_cert::<_, ICC_PUBKEY_BYTE_LEN, _, _>(
-        issuer_key.recover(x.icc_cert),
-        [],
-        x.icc_exponent,
-        BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(),
-    );
-    let icc_key = RsaKey::<ICC_PUBKEY_BYTE_LEN>::from_be_bytes(icc.modulus);
-
-    assert_issuer_id_matches_pan(issuer.issuer_id, icc.pan);
-    assert_not_expired(issuer.expiry, x.today);
-    assert_not_expired(icc.expiry, x.today);
-
     let terminal_data = concat(
         concat(concat(x.nonce, x.amount), x.currency),
         x.card_auth_data,
     );
-    verify_sdad(icc_key.recover(x.sdad), FMT_SDAD_FDDA, terminal_data);
+    let card = CaKey::<CA_PUBKEY_BYTE_LEN>::from_limbs(x.ca_modulus)
+        .recover_issuer_cert(x.issuer_cert)
+        .verify::<ISSUER_PUBKEY_BYTE_LEN, _>([], x.issuer_exponent, x.today)
+        .key()
+        .recover_icc_cert(x.icc_cert)
+        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], x.icc_exponent, BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(), x.today)
+        .key()
+        .recover_sdad(x.sdad)
+        .verify(FMT_SDAD_FDDA, terminal_data);
 
-    (bin_attributes(icc.pan, x.bin_root, x.disclose, x.bin), nullifier(icc.modulus, x.scope))
+    (card.bin_attributes(x.bin_root, x.disclose, x.bin), card.nullifier(x.scope))
 }
