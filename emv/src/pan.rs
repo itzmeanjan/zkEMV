@@ -17,8 +17,8 @@ const PAN_PREFIX: std::ops::Range<usize> = 2..8;
 /// a wrong value only makes the proof fail.
 pub(crate) fn prefix(card: &Card, ca_modulus: &[u8]) -> Result<u64> {
     let (issuer_cert, remainder, icc_cert) = match card {
-        Card::VisaFdda(c) => (&c.issuer_cert, &[][..], &c.icc_cert),
-        Card::MastercardDda(c) => (&c.issuer_cert, &c.issuer_remainder[..], &c.icc_cert),
+        Card::VisaFdda(c) => (&c.issuer_pubkey_cert, &[][..], &c.icc_pubkey_cert),
+        Card::MastercardDda(c) => (&c.issuer_pubkey_cert, &c.issuer_pubkey_remainder[..], &c.icc_pubkey_cert),
     };
     let issuer = recover(issuer_cert, ca_modulus, FMT_ISSUER_CERT).ok_or(Error::Card("issuer certificate doesn't recover under the CA key"))?;
     let key_len = issuer.get(ISSUER_KEY_LEN_AT).copied().map(usize::from);

@@ -2,10 +2,7 @@
 
 mod tests;
 
-use emv::{
-    AMOUNT_AUTHORISED_BYTE_LEN, BinAttributes, BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CA_PUBKEY_LIMB_COUNT, CaKey, concat, CURRENCY_CODE_BYTE_LEN,
-    FMT_SDAD_FDDA, NONCE_BYTE_LEN,
-};
+use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, concat, FMT_SDAD_FDDA, Revealed, Transaction, TrustAnchors};
 
 global ISSUER_PUBKEY_BIT_LEN: u32 = 1408;
 global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
@@ -13,79 +10,36 @@ global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
 global ICC_PUBKEY_BIT_LEN: u32 = 1024;
 global ICC_PUBKEY_BYTE_LEN: u32 = ICC_PUBKEY_BIT_LEN / BITS_PER_BYTE;
 
-global CARD_AUTH_DATA_BYTE_LEN: u32 = 7;
+global CARD_AUTH_RELATED_DATA_BYTE_LEN: u32 = 7;
 global STATIC_DATA_MAX_BYTE_LEN: u32 = 0;
 
-pub struct Inputs {
-    pub ca_modulus: [Field; CA_PUBKEY_LIMB_COUNT],
-    pub nonce: [u8; NONCE_BYTE_LEN],
-    pub amount: [u8; AMOUNT_AUTHORISED_BYTE_LEN],
-    pub currency: [u8; CURRENCY_CODE_BYTE_LEN],
-    pub today: u32,
-    pub scope: Field,
-    pub bin_root: Field,
-    pub disclose: u8,
-    pub issuer_cert: [u8; CA_PUBKEY_BYTE_LEN],
-    pub issuer_exponent: u8,
-    pub icc_cert: [u8; ISSUER_PUBKEY_BYTE_LEN],
-    pub icc_exponent: u8,
-    pub sdad: [u8; ICC_PUBKEY_BYTE_LEN],
-    pub card_auth_data: [u8; CARD_AUTH_DATA_BYTE_LEN],
-    pub bin: BinMembership,
+/// The card's data from the tap.
+pub struct Card {
+    pub issuer_pubkey_cert: [u8; CA_PUBKEY_BYTE_LEN],
+    pub issuer_pubkey_exponent: u8,
+    pub icc_pubkey_cert: [u8; ISSUER_PUBKEY_BYTE_LEN],
+    pub icc_pubkey_exponent: u8,
+    pub signed_dynamic_app_data: [u8; ICC_PUBKEY_BYTE_LEN],
+    pub card_auth_related_data: [u8; CARD_AUTH_RELATED_DATA_BYTE_LEN],
 }
 
-fn main(
-    ca_modulus: pub [Field; CA_PUBKEY_LIMB_COUNT],
-    nonce: pub [u8; NONCE_BYTE_LEN],
-    amount: pub [u8; AMOUNT_AUTHORISED_BYTE_LEN],
-    currency: pub [u8; CURRENCY_CODE_BYTE_LEN],
-    today: pub u32,
-    scope: pub Field,
-    bin_root: pub Field,
-    disclose: pub u8,
-    issuer_cert: [u8; CA_PUBKEY_BYTE_LEN], // 90
-    issuer_exponent: u8, // 9F32
-    icc_cert: [u8; ISSUER_PUBKEY_BYTE_LEN], // 9F46
-    icc_exponent: u8, // 9F47
-    sdad: [u8; ICC_PUBKEY_BYTE_LEN], // 9F4B
-    card_auth_data: [u8; CARD_AUTH_DATA_BYTE_LEN], // 9F69
-    bin: BinMembership,
-) -> pub (BinAttributes, Field) {
-    verify(
-        Inputs {
-            ca_modulus,
-            nonce,
-            amount,
-            currency,
-            today,
-            scope,
-            bin_root,
-            disclose,
-            issuer_cert,
-            issuer_exponent,
-            icc_cert,
-            icc_exponent,
-            sdad,
-            card_auth_data,
-            bin,
-        },
-    )
-}
-
-fn verify(x: Inputs) -> (BinAttributes, Field) {
+fn main(trust_anchors: pub TrustAnchors, challenge: pub Challenge, transaction: pub Transaction, card: Card, bin_membership: BinMembership) -> pub Revealed {
     let terminal_data = concat(
-        concat(concat(x.nonce, x.amount), x.currency),
-        x.card_auth_data,
+        concat(
+            concat(challenge.nonce, transaction.amount_authorised),
+            transaction.currency_code,
+        ),
+        card.card_auth_related_data,
     );
-    let card = CaKey::from_limbs(x.ca_modulus)
-        .recover_issuer_cert(x.issuer_cert)
-        .verify::<ISSUER_PUBKEY_BYTE_LEN, _>([], x.issuer_exponent, x.today)
-        .key()
-        .recover_icc_cert(x.icc_cert)
-        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], x.icc_exponent, BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(), x.today)
-        .key()
-        .recover_sdad(x.sdad)
-        .verify(FMT_SDAD_FDDA, terminal_data);
 
-    (card.bin_attributes(x.bin_root, x.disclose, x.bin), card.nullifier(x.scope))
+    CaKey::from_limbs(trust_anchors.ca_modulus)
+        .recover_issuer_cert(card.issuer_pubkey_cert)
+        .verify::<ISSUER_PUBKEY_BYTE_LEN, _>([], card.issuer_pubkey_exponent, challenge.today_yymm)
+        .key()
+        .recover_icc_cert(card.icc_pubkey_cert)
+        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(), challenge.today_yymm)
+        .key()
+        .recover_sdad(card.signed_dynamic_app_data)
+        .verify(FMT_SDAD_FDDA, terminal_data)
+        .reveal(trust_anchors.bin_root, challenge, bin_membership)
 }

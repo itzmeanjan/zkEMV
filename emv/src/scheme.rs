@@ -48,39 +48,8 @@ impl Scheme {
     /// `main`'s parameters, in order.
     const fn parameters(self) -> &'static [&'static str] {
         match self {
-            Self::VisaFdda => &[
-                "ca_modulus",
-                "nonce",
-                "amount",
-                "currency",
-                "today",
-                "scope",
-                "bin_root",
-                "disclose",
-                "issuer_cert",
-                "issuer_exponent",
-                "icc_cert",
-                "icc_exponent",
-                "sdad",
-                "card_auth_data",
-                "bin",
-            ],
-            Self::MastercardDda => &[
-                "ca_modulus",
-                "nonce",
-                "today",
-                "scope",
-                "bin_root",
-                "disclose",
-                "issuer_cert",
-                "issuer_remainder",
-                "issuer_exponent",
-                "icc_cert",
-                "icc_exponent",
-                "static_data",
-                "sdad",
-                "bin",
-            ],
+            Self::VisaFdda => &["trust_anchors", "challenge", "transaction", "card", "bin_membership"],
+            Self::MastercardDda => &["trust_anchors", "challenge", "card", "bin_membership"],
         }
     }
 

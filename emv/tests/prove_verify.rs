@@ -261,7 +261,8 @@ fn proof_is_rejected_by_other_schemes_key() {
 fn forged_public_inputs_are_rejected() {
     let (challenge, proof) = stale_proof(Scheme::MastercardDda);
     let issued = issue(Scheme::MastercardDda, Scope::Verifier, today());
-    let nonce_at = 17;
+    // After `trust_anchors`: the CA modulus's 17 limbs and the BIN root.
+    let nonce_at = 18;
     let mut forged: NoirProof = file::deserialize(&proof.to_bytes().unwrap()).unwrap();
     for (i, &b) in issued.nonce().iter().enumerate() {
         forged.public_inputs.0[nonce_at + i] = FieldElement::from(b);
@@ -299,7 +300,7 @@ fn tampered_card_cannot_be_proved() {
     let challenge = receive(&issue(Scheme::VisaFdda, Scope::Verifier, today()));
     let (ca, mut card) = tap(&challenge);
     let Card::VisaFdda(c) = &mut card else { unreachable!() };
-    c.sdad[64] ^= 1;
+    c.signed_dynamic_app_data[64] ^= 1;
     assert!(keys(Scheme::VisaFdda).0.prove(&challenge, &ca, &card, None).is_err());
 }
 
@@ -318,11 +319,11 @@ fn wrong_length_card_fields_are_errors() {
     let (ca, card) = tap(&challenge);
     let Card::MastercardDda(c) = card else { unreachable!() };
     let mutations: [fn(&mut MastercardDda); 5] = [
-        |c| c.issuer_cert.truncate(10),
-        |c| c.icc_cert.clear(),
-        |c| c.issuer_remainder.clear(),
-        |c| c.sdad.truncate(100),
-        |c| c.static_data = vec![0; 300],
+        |c| c.issuer_pubkey_cert.truncate(10),
+        |c| c.icc_pubkey_cert.clear(),
+        |c| c.issuer_pubkey_remainder.clear(),
+        |c| c.signed_dynamic_app_data.truncate(100),
+        |c| c.static_data_to_authenticate = vec![0; 300],
     ];
     for mutate in mutations {
         let mut c = c.clone();

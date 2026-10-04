@@ -3,131 +3,130 @@
 
 mod vectors;
 
-use crate::verify;
+use crate::main;
 use emv::{BinMembership, nullifier};
-use vectors::{CARDS, ICC_MODULUS};
+use vectors::{BIN_MEMBERSHIP, CARD, CHALLENGE, ICC_MODULUS, TRUST_ANCHORS};
 
 #[test]
-fn every_card_verifies() {
-    for i in 0..CARDS.len() {
-        let _ = verify(CARDS[i]);
-    }
+fn synthetic_tap_verifies() {
+    let _ = main(TRUST_ANCHORS, CHALLENGE, CARD, BIN_MEMBERSHIP);
 }
 
 #[test]
 fn nullifier_is_of_the_certified_icc_key() {
-    assert_eq(verify(CARDS[0]).1, nullifier(ICC_MODULUS, CARDS[0].scope));
+    assert_eq(main(TRUST_ANCHORS, CHALLENGE, CARD, BIN_MEMBERSHIP).nullifier, nullifier(ICC_MODULUS, CHALLENGE.scope));
 }
 
 #[test]
 fn nullifier_changes_with_scope() {
-    let mut x = CARDS[0];
-    x.scope += 1;
-    assert(verify(x).1 != verify(CARDS[0]).1);
+    let mut challenge = CHALLENGE;
+    challenge.scope += 1;
+    assert(main(TRUST_ANCHORS, challenge, CARD, BIN_MEMBERSHIP).nullifier != main(TRUST_ANCHORS, CHALLENGE, CARD, BIN_MEMBERSHIP).nullifier);
 }
 
 /// `scripts/gen_synthetic.py`'s `BIN_ATTRIBUTES`: prepaid, MASTERCARD, commercial.
 #[test]
 fn discloses_the_cards_bin_attributes() {
-    let (a, _) = verify(CARDS[0]);
+    let a = main(TRUST_ANCHORS, CHALLENGE, CARD, BIN_MEMBERSHIP).bin_attributes;
     assert_eq((a.country, a.card_type, a.brand, a.commercial), (998, 3, 1, true));
 }
 
 #[test]
 fn nothing_disclosed_needs_no_bin_table() {
-    let mut x = CARDS[0];
-    x.disclose = 0;
-    x.bin_root = 0;
-    x.bin = BinMembership { low: 0, high: 0, country: 0, card_type: 0, brand: 0, commercial: false, slot: 0, siblings: [0; 24] };
-    let (a, n) = verify(x);
+    let (mut trust_anchors, mut challenge) = (TRUST_ANCHORS, CHALLENGE);
+    challenge.disclosure = 0;
+    trust_anchors.bin_root = 0;
+    let no_bin = BinMembership { low: 0, high: 0, country: 0, card_type: 0, brand: 0, commercial: false, slot: 0, siblings: [0; 24] };
+    let revealed = main(trust_anchors, challenge, CARD, no_bin);
+    let a = revealed.bin_attributes;
     assert_eq((a.country, a.card_type, a.brand, a.commercial), (0, 0, 0, false));
-    assert_eq(n, verify(CARDS[0]).1);
+    assert_eq(revealed.nullifier, main(TRUST_ANCHORS, CHALLENGE, CARD, BIN_MEMBERSHIP).nullifier);
 }
 
 #[test(should_fail_with = "range is not in the BIN table")]
 fn wrong_bin_root_fails() {
-    let mut x = CARDS[0];
-    x.bin_root += 1;
-    let _ = verify(x);
+    let mut trust_anchors = TRUST_ANCHORS;
+    trust_anchors.bin_root += 1;
+    let _ = main(trust_anchors, CHALLENGE, CARD, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail_with = "range is not in the BIN table")]
 fn changed_bin_attribute_fails() {
-    let mut x = CARDS[0];
-    x.bin.commercial = !x.bin.commercial;
-    let _ = verify(x);
+    let mut bin_membership = BIN_MEMBERSHIP;
+    bin_membership.commercial = !bin_membership.commercial;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, CARD, bin_membership);
 }
 
 #[test(should_fail)]
 fn range_without_the_pan_fails() {
     // The PAN's prefix is its range's low, so this excludes it; the leaf changes too.
-    let mut x = CARDS[0];
-    x.bin.low += 1;
-    let _ = verify(x);
+    let mut bin_membership = BIN_MEMBERSHIP;
+    bin_membership.low += 1;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, CARD, bin_membership);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn wrong_nonce_fails() {
-    let mut x = CARDS[0];
-    x.nonce[3] ^= 1;
-    let _ = verify(x);
+    let mut challenge = CHALLENGE;
+    challenge.nonce[3] ^= 1;
+    let _ = main(TRUST_ANCHORS, challenge, CARD, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn tampered_static_data_fails() {
-    let mut x = CARDS[0];
-    let b = x.static_data.get(10);
-    x.static_data.set(10, b ^ 1);
-    let _ = verify(x);
+    let mut card = CARD;
+    let b = card.static_data_to_authenticate.get(10);
+    card.static_data_to_authenticate.set(10, b ^ 1);
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]
 fn truncated_static_data_fails() {
-    let mut x = CARDS[0];
-    let _ = x.static_data.pop();
-    let _ = verify(x);
+    let mut card = CARD;
+    let _ = card.static_data_to_authenticate.pop();
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail)]
-fn tampered_issuer_remainder_fails() {
+fn tampered_issuer_pubkey_remainder_fails() {
     // The remainder is covered by the issuer certificate hash, and it is also the tail
     // of the issuer key; either check catches it.
-    let mut x = CARDS[0];
-    x.issuer_remainder[5] ^= 1;
-    let _ = verify(x);
+    let mut card = CARD;
+    card.issuer_pubkey_remainder[5] ^= 1;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail)]
-fn tampered_dynamic_signature_fails() {
-    let mut x = CARDS[0];
-    x.sdad[64] ^= 1;
-    let _ = verify(x);
+fn tampered_signed_dynamic_app_data_fails() {
+    let mut card = CARD;
+    card.signed_dynamic_app_data[64] ^= 1;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail)]
-fn tampered_icc_certificate_fails() {
-    let mut x = CARDS[0];
-    x.icc_cert[64] ^= 1;
-    let _ = verify(x);
+fn tampered_icc_pubkey_cert_fails() {
+    let mut card = CARD;
+    card.icc_pubkey_cert[64] ^= 1;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail)]
-fn tampered_issuer_certificate_fails() {
-    let mut x = CARDS[0];
-    x.issuer_cert[64] ^= 1;
-    let _ = verify(x);
+fn tampered_issuer_pubkey_cert_fails() {
+    let mut card = CARD;
+    card.issuer_pubkey_cert[64] ^= 1;
+    let _ = main(TRUST_ANCHORS, CHALLENGE, card, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail)]
 fn wrong_ca_key_fails() {
-    let mut x = CARDS[0];
-    x.ca_modulus[0] += 2;
-    let _ = verify(x);
+    let mut trust_anchors = TRUST_ANCHORS;
+    trust_anchors.ca_modulus[0] += 2;
+    let _ = main(trust_anchors, CHALLENGE, CARD, BIN_MEMBERSHIP);
 }
 
 #[test(should_fail_with = "certificate expired")]
 fn expired_fails() {
-    let mut x = CARDS[0];
-    x.today = 5001;
-    let _ = verify(x);
+    let mut challenge = CHALLENGE;
+    challenge.today_yymm = 5001;
+    let _ = main(TRUST_ANCHORS, challenge, CARD, BIN_MEMBERSHIP);
 }

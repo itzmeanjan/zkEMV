@@ -69,7 +69,7 @@ impl ProvingKey {
     /// - [`Error::SchemeMismatch`]: `challenge` or `card` is for another scheme.
     /// - [`Error::CaKey`]: `ca` is for another scheme, or expired before the challenge's
     ///   month.
-    /// - [`Error::Length`]: `issuer_cert` or `icc_cert` has the wrong length.
+    /// - [`Error::Length`]: `issuer_pubkey_cert` or `icc_pubkey_cert` has the wrong length.
     /// - [`Error::Card`]: the static data is too long, or, when BIN attributes are asked for,
     ///   a certificate doesn't recover or the PAN has fewer than 12 digits.
     /// - [`Error::BinTable`]: BIN attributes are asked for, but `bins` is `None` or has

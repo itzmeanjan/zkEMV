@@ -60,21 +60,21 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
     let sdad = resign(&doc["testIccKey"], &tag("9F4B"), &terminal_data);
     let card = match scheme {
         Scheme::VisaFdda => Card::VisaFdda(VisaFdda {
-            issuer_cert: tag("90"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            sdad,
-            card_auth_data: tag("9F69"),
+            issuer_pubkey_cert: tag("90"),
+            issuer_pubkey_exponent: tag("9F32")[0],
+            icc_pubkey_cert: tag("9F46"),
+            icc_pubkey_exponent: tag("9F47")[0],
+            signed_dynamic_app_data: sdad,
+            card_auth_related_data: tag("9F69"),
         }),
         Scheme::MastercardDda => Card::MastercardDda(MastercardDda {
-            issuer_cert: tag("90"),
-            issuer_remainder: tag("92"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            static_data: static_data(&doc, &tag("9F4A"), &tag("82")),
-            sdad,
+            issuer_pubkey_cert: tag("90"),
+            issuer_pubkey_remainder: tag("92"),
+            issuer_pubkey_exponent: tag("9F32")[0],
+            icc_pubkey_cert: tag("9F46"),
+            icc_pubkey_exponent: tag("9F47")[0],
+            static_data_to_authenticate: static_data(&doc, &tag("9F4A"), &tag("82")),
+            signed_dynamic_app_data: sdad,
         }),
     };
     (ca, card)

@@ -9,6 +9,7 @@
 mod bin_table;
 mod bytes;
 mod card_chain;
+mod interface;
 mod nullifier;
 mod policy;
 mod rsa;
@@ -21,4 +22,5 @@ pub use card_chain::{
     AMOUNT_AUTHORISED_BYTE_LEN, AuthenticatedCard, CA_PUBKEY_BYTE_LEN, CA_PUBKEY_LIMB_COUNT, CaKey, CURRENCY_CODE_BYTE_LEN, FMT_SDAD_DDA, FMT_SDAD_FDDA,
     IccCert, IccKey, ISSUER_CERT_KEY_SPACE_BYTE_LEN, IssuerCert, IssuerKey, NONCE_BYTE_LEN, RecoveredIccCert, RecoveredIssuerCert, RecoveredSdad,
 };
+pub use interface::{Challenge, Revealed, Transaction, TrustAnchors};
 pub use nullifier::nullifier;

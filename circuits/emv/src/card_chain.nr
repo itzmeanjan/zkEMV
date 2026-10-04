@@ -1,6 +1,7 @@
 use crate::{
-    bin_table::{bin_attributes, BinAttributes, BinMembership},
+    bin_table::{bin_attributes, BinMembership},
     bytes::{self, BITS_PER_BYTE},
+    interface::{Challenge, Revealed},
     nullifier::nullifier,
     policy::{assert_issuer_id_matches_pan, assert_not_expired},
     rsa::{LIMB_BYTE_LEN, RsaKey},
@@ -267,11 +268,10 @@ impl<let K: u32> RecoveredSdad<K> {
 }
 
 impl<let K: u32> AuthenticatedCard<K> {
-    pub fn nullifier(self, scope: Field) -> Field {
-        nullifier(self.icc_modulus, scope)
-    }
-
-    pub fn bin_attributes(self, root: Field, disclose: u8, membership: BinMembership) -> BinAttributes {
-        bin_attributes(self.pan, root, disclose, membership)
+    pub fn reveal(self, bin_root: Field, challenge: Challenge, bin_membership: BinMembership) -> Revealed {
+        Revealed {
+            bin_attributes: bin_attributes(self.pan, bin_root, challenge.disclosure, bin_membership),
+            nullifier: nullifier(self.icc_modulus, challenge.scope),
+        }
     }
 }
