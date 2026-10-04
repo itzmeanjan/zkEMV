@@ -1,6 +1,6 @@
 global NIBBLE_PAD: u8 = 0xF;
 
-fn nibbles(b: u8) -> (u8, u8) {
+pub(crate) fn nibbles(b: u8) -> (u8, u8) {
     (b >> 4, b & 0xF)
 }
 

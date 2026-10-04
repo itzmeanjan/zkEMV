@@ -2,7 +2,10 @@
 
 mod tests;
 
-use emv::{assert_issuer_id_matches_pan, assert_not_expired, FMT_SDAD_DDA, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad};
+use emv::{
+    assert_issuer_id_matches_pan, assert_not_expired, bin_attributes, BinAttributes, BinMembership, FMT_SDAD_DDA, nullifier, RsaKey, verify_icc_cert,
+    verify_issuer_cert, verify_sdad,
+};
 
 global CA_BITS: u32 = 1984;
 /// 120-bit limbs of the CA modulus.
@@ -20,6 +23,8 @@ pub struct Inputs {
     pub nonce: [u8; 4],
     pub today: u32,
     pub scope: Field,
+    pub bin_root: Field,
+    pub disclose: u8,
     pub issuer_cert: [u8; CA_BITS / 8],
     pub issuer_remainder: [u8; ISSUER_REMAINDER_LEN],
     pub issuer_exponent: u8,
@@ -27,6 +32,7 @@ pub struct Inputs {
     pub icc_exponent: u8,
     pub static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>,
     pub sdad: [u8; ICC_BITS / 8],
+    pub bin: BinMembership,
 }
 
 fn main(
@@ -38,6 +44,10 @@ fn main(
     today: pub u32,
     // Chosen by the verifier, or at random by the prover when the verifier needs no nullifier.
     scope: pub Field,
+    // Root of the verifier's BIN table (emv crate's `BinTable`).
+    bin_root: pub Field,
+    // Attributes to reveal, see `emv::bin_attributes`.
+    disclose: pub u8,
     issuer_cert: [u8; CA_BITS / 8], // 90
     issuer_remainder: [u8; ISSUER_REMAINDER_LEN], // 92
     issuer_exponent: u8, // 9F32
@@ -45,13 +55,29 @@ fn main(
     icc_exponent: u8, // 9F47
     static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>, // AFL-flagged records || AIP
     sdad: [u8; ICC_BITS / 8], // 9F4B
-) -> pub Field {
+    bin: BinMembership,
+) -> pub (BinAttributes, Field) {
     verify(
-        Inputs { ca_modulus, nonce, today, scope, issuer_cert, issuer_remainder, issuer_exponent, icc_cert, icc_exponent, static_data, sdad },
+        Inputs {
+            ca_modulus,
+            nonce,
+            today,
+            scope,
+            bin_root,
+            disclose,
+            issuer_cert,
+            issuer_remainder,
+            issuer_exponent,
+            icc_cert,
+            icc_exponent,
+            static_data,
+            sdad,
+            bin,
+        },
     )
 }
 
-fn verify(x: Inputs) -> Field {
+fn verify(x: Inputs) -> (BinAttributes, Field) {
     let ca_key = RsaKey::<CA_BITS / 8>::from_limbs(x.ca_modulus);
 
     let issuer = verify_issuer_cert::<_, ISSUER_BITS / 8, _>(
@@ -75,5 +101,5 @@ fn verify(x: Inputs) -> Field {
 
     verify_sdad(icc_key.recover(x.sdad), FMT_SDAD_DDA, x.nonce);
 
-    nullifier(icc.modulus, x.scope)
+    (bin_attributes(icc.pan, x.bin_root, x.disclose, x.bin), nullifier(icc.modulus, x.scope))
 }

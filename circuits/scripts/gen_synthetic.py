@@ -7,6 +7,7 @@ import os
 import random
 from typing import Any, Callable, TypedDict
 
+import bin_tree
 import verify_emv_reference as vc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -177,6 +178,20 @@ KINDS: dict[str, Kind] = {
 }
 
 
+# BIN table attributes of each kind's 6-digit BIN. Countries are ISO 3166's user-assigned codes.
+BIN_ATTRIBUTES: dict[str, dict[str, Any]] = {
+    "visa_fdda": {"country": 999, "type": "credit", "brand": "VISA", "commercial": False},
+    "mastercard_dda": {"country": 998, "type": "prepaid", "brand": "MASTERCARD", "commercial": True},
+}
+
+
+def bin_table() -> str:
+    spans = sorted((int(kind["pan"][:6]) * 10**6, pkg) for pkg, kind in KINDS.items())
+    ranges = [{"slot": i, "low": low, "high": low + 10**6 - 1, **BIN_ATTRIBUTES[pkg]} for i, (low, pkg) in enumerate(spans)]
+    brands = sorted({r["brand"] for r in ranges})
+    return bin_tree.dump({"source": {"repository": "scripts/gen_synthetic.py"}}, brands, ranges)
+
+
 def element(tag: str, value: bytes, source: str) -> dict[str, Any]:
     return {"tag": tag, "value": value.hex().upper(), "length": len(value), "source": source}
 
@@ -298,6 +313,9 @@ def main() -> None:
     }
     open(os.path.join(FIXTURES, "test-ca-keys.json"), "w").write(json.dumps(table, indent=2) + "\n")
     print("wrote fixtures/test-ca-keys.json")
+
+    open(os.path.join(FIXTURES, "bin-table.json"), "w", encoding="utf-8").write(bin_table())
+    print("wrote fixtures/bin-table.json")
 
 
 if __name__ == "__main__":

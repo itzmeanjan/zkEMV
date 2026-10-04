@@ -4,7 +4,7 @@
 mod vectors;
 
 use crate::verify;
-use emv::nullifier;
+use emv::{BinMembership, nullifier};
 use vectors::{CARDS, ICC_MODULUS};
 
 #[test]
@@ -16,14 +16,54 @@ fn every_card_verifies() {
 
 #[test]
 fn nullifier_is_of_the_certified_icc_key() {
-    assert_eq(verify(CARDS[0]), nullifier(ICC_MODULUS, CARDS[0].scope));
+    assert_eq(verify(CARDS[0]).1, nullifier(ICC_MODULUS, CARDS[0].scope));
 }
 
 #[test]
 fn nullifier_changes_with_scope() {
     let mut x = CARDS[0];
     x.scope += 1;
-    assert(verify(x) != verify(CARDS[0]));
+    assert(verify(x).1 != verify(CARDS[0]).1);
+}
+
+/// `scripts/gen_synthetic.py`'s `BIN_ATTRIBUTES`: prepaid, MASTERCARD, commercial.
+#[test]
+fn discloses_the_cards_bin_attributes() {
+    let (a, _) = verify(CARDS[0]);
+    assert_eq((a.country, a.card_type, a.brand, a.commercial), (998, 3, 1, true));
+}
+
+#[test]
+fn nothing_disclosed_needs_no_bin_table() {
+    let mut x = CARDS[0];
+    x.disclose = 0;
+    x.bin_root = 0;
+    x.bin = BinMembership { low: 0, high: 0, country: 0, card_type: 0, brand: 0, commercial: false, slot: 0, siblings: [0; 24] };
+    let (a, n) = verify(x);
+    assert_eq((a.country, a.card_type, a.brand, a.commercial), (0, 0, 0, false));
+    assert_eq(n, verify(CARDS[0]).1);
+}
+
+#[test(should_fail_with = "range is not in the BIN table")]
+fn wrong_bin_root_fails() {
+    let mut x = CARDS[0];
+    x.bin_root += 1;
+    let _ = verify(x);
+}
+
+#[test(should_fail_with = "range is not in the BIN table")]
+fn changed_bin_attribute_fails() {
+    let mut x = CARDS[0];
+    x.bin.commercial = !x.bin.commercial;
+    let _ = verify(x);
+}
+
+#[test(should_fail)]
+fn range_without_the_pan_fails() {
+    // The PAN's prefix is its range's low, so this excludes it; the leaf changes too.
+    let mut x = CARDS[0];
+    x.bin.low += 1;
+    let _ = verify(x);
 }
 
 #[test(should_fail_with = "recovered hash mismatch")]

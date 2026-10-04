@@ -6,12 +6,14 @@
 //! Each key width is a type parameter of `RsaKey`, so a circuit is built per key-width profile.
 //! Recovery (`RsaKey::recover`) is split from parsing (`verify_*`).
 
+mod bin_table;
 mod nullifier;
 mod policy;
 mod rsa;
 mod sha1;
 mod tests;
 
+pub use bin_table::{bin_attributes, BinAttributes, BinMembership};
 pub use nullifier::nullifier;
 
 pub use policy::{assert_issuer_id_matches_pan, assert_not_expired};

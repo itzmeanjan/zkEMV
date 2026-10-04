@@ -1,0 +1,20 @@
+{
+  "source": {
+    "repository": "scripts/gen_synthetic.py"
+  },
+  "tree": {
+    "depth": 24,
+    "leaf": "low + high·2^40 + country·2^80 + type·2^90 + brand·2^92 + commercial·2^100 + 2^101; 0 if empty. type: credit 1, debit 2, prepaid 3.",
+    "node": "Poseidon2 (noir-lang/poseidon v0.3.0, t = 4) of the left and right child.",
+    "prefix_digits": 12,
+    "root": "2925e29a2f0b7d32e4157f247b07087d71d891d9b92fed3265f6bd494eb8cf09"
+  },
+  "brands": [
+    "MASTERCARD",
+    "VISA"
+  ],
+  "ranges": [
+    {"slot": 0, "low": 999990000000, "high": 999990999999, "country": 999, "type": "credit", "brand": "VISA", "commercial": false},
+    {"slot": 1, "low": 999991000000, "high": 999991999999, "country": 998, "type": "prepaid", "brand": "MASTERCARD", "commercial": true}
+  ]
+}

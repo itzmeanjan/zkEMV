@@ -299,13 +299,12 @@ fn leaf(range: &Range, brand: u64) -> Fr {
 #[cfg(test)]
 mod tests {
     use ark_bn254::Fr;
+    use ark_ff::Zero;
 
-    use super::{Attributes, CardType, Range, leaf};
+    use super::{Attributes, BinRoot, CardType, Range, Tree, leaf};
 
-    /// The layout's bits: 2^101 + 2^100 + 7·2^92 + 3·2^90 + 999·2^80 + (10^12 - 1)·2^40 + 1.
-    #[test]
-    fn leaf_layout() {
-        let range = Range {
+    fn range() -> Range {
+        Range {
             low: 1,
             high: 999_999_999_999,
             attributes: Attributes {
@@ -314,8 +313,24 @@ mod tests {
                 brand: "X".to_owned(),
                 commercial: true,
             },
-        };
+        }
+    }
+
+    /// The layout's bits: 2^101 + 2^100 + 7·2^92 + 3·2^90 + 999·2^80 + (10^12 - 1)·2^40 + 1.
+    #[test]
+    fn leaf_layout() {
         let expected: u128 = 0x30_7FE7_E8D4_A50F_FF00_0000_0001;
-        assert_eq!(leaf(&range, 7), Fr::from(expected));
+        assert_eq!(leaf(&range(), 7), Fr::from(expected));
+    }
+
+    /// `circuits/emv/src/tests/bin_table.nr` and `scripts/bin_tree.py` give the same root.
+    #[test]
+    fn root_known_answer() {
+        let mut leaves = vec![Fr::zero(); 5];
+        leaves.push(leaf(&range(), 7));
+        assert_eq!(
+            const_hex::encode(BinRoot::from_field(Tree::new(leaves).root()).to_bytes()),
+            "297d4dd4a82f4c56e9367532bd636f3a617638f25392938f317fbc4af114147a"
+        );
     }
 }
