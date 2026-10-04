@@ -6,17 +6,17 @@
 mod common;
 
 use common::{ORIGIN, ZERO_USD, check, phone, setup, today};
-use emv::{Challenge, Scope};
+use emv::{Challenge, Scheme, Scope};
 
 fn main() -> emv::Result<()> {
-    let (pk, vk, table) = setup()?;
+    let (pk, vk, table) = setup(Scheme::VisaFdda)?;
 
     for visit in 1..=2 {
         let challenge = Challenge::visa_fdda(ORIGIN, Scope::Unlinkable, today()?, ZERO_USD)?;
         let response = phone(&pk, &challenge.to_bytes(), ORIGIN)?;
 
         // The phone drew the scope, so the verifier gets no nullifier.
-        let nullifier = check(&vk, &table, challenge, &response)?;
+        let nullifier = check(&vk, &table, challenge, &response)?.nullifier;
         assert!(nullifier.is_none());
         println!("visit {visit}: a genuine card was tapped");
     }

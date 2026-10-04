@@ -1,6 +1,9 @@
 use std::sync::OnceLock;
 
-use emv::{CaTable, Card, Challenge, Error, MastercardDda, Nullifier, Proof, ProvingKey, Received, Scheme, Scope, VerifyingKey, YearMonth, prepare};
+use emv::{
+    BinTable, CaTable, Card, CardType, Challenge, Disclosed, Disclosure, Error, Issued, MastercardDda, Nullifier, Proof, ProvingKey, Received, Scheme, Scope,
+    VerifyingKey, YearMonth, prepare,
+};
 use provekit_common::{FieldElement, NoirProof, file};
 
 mod common;
@@ -28,10 +31,19 @@ fn keys(scheme: Scheme) -> &'static (ProvingKey, VerifyingKey) {
     })
 }
 
+/// `fixtures/bin-table.json`: one range per synthetic tap's BIN.
+fn bins() -> &'static BinTable {
+    static TABLE: OnceLock<BinTable> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        let path = format!("{}/fixtures/bin-table.json", common::mock::circuits());
+        BinTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
+    })
+}
+
 /// Proofs go through a bytes round trip, so every test also covers proof serialization.
 fn prove(challenge: &Challenge<Received>) -> emv::Result<Proof> {
     let (ca, card) = tap(challenge);
-    let proof = keys(challenge.scheme()).0.prove(challenge, &ca, &card)?;
+    let proof = keys(challenge.scheme()).0.prove(challenge, &ca, &card, Some(bins()))?;
     Proof::from_bytes(&proof.to_bytes()?)
 }
 
@@ -69,7 +81,7 @@ fn session(scheme: Scheme, scope: Scope) -> Option<Nullifier> {
     let issued = issue(scheme, scope, today());
     let received = receive(&issued);
     let proof = prove(&received).unwrap();
-    keys(scheme).1.verify(issued, &tap(&received).0, &proof).unwrap()
+    keys(scheme).1.verify(issued, &tap(&received).0, &proof).unwrap().nullifier
 }
 
 /// The circuit's nullifier equals the host's.
@@ -81,7 +93,7 @@ fn nullifier_is_the_cards_in_the_scope() {
             let expected = issued.nullifier_of(&icc_modulus(scheme)).unwrap();
             let received = receive(&issued);
             let proof = prove(&received).unwrap();
-            assert_eq!(keys(scheme).1.verify(issued, &tap(&received).0, &proof).unwrap(), Some(expected));
+            assert_eq!(keys(scheme).1.verify(issued, &tap(&received).0, &proof).unwrap().nullifier, Some(expected));
         }
     }
 }
@@ -228,7 +240,7 @@ fn ca_key_must_fit_the_verified_challenge() {
 
         let challenge = receive(&issue(Scheme::MastercardDda, Scope::Verifier, month));
         let card = tap(&challenge).1;
-        let err = keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &card).unwrap_err();
+        let err = keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &card, None).unwrap_err();
         assert!(matches!(err, Error::CaKey(_)), "{err}");
     }
 }
@@ -264,7 +276,7 @@ fn forged_public_inputs_are_rejected() {
 fn challenge_of_other_scheme_is_refused() {
     let (challenge, proof) = stale_proof(Scheme::MastercardDda);
     let (ca, card) = tap(challenge);
-    let err = keys(Scheme::VisaFdda).0.prove(challenge, &ca, &card).unwrap_err();
+    let err = keys(Scheme::VisaFdda).0.prove(challenge, &ca, &card, None).unwrap_err();
     assert!(matches!(err, Error::SchemeMismatch { .. }), "{err}");
 
     let err = keys(Scheme::VisaFdda)
@@ -278,7 +290,7 @@ fn challenge_of_other_scheme_is_refused() {
 fn card_of_other_scheme_is_refused() {
     let visa = receive(&issue(Scheme::VisaFdda, Scope::Verifier, today()));
     let (ca, card) = tap(&receive(&issue(Scheme::MastercardDda, Scope::Verifier, today())));
-    let err = keys(Scheme::VisaFdda).0.prove(&visa, &ca, &card).unwrap_err();
+    let err = keys(Scheme::VisaFdda).0.prove(&visa, &ca, &card, None).unwrap_err();
     assert!(matches!(err, Error::SchemeMismatch { .. }), "{err}");
 }
 
@@ -288,7 +300,7 @@ fn tampered_card_cannot_be_proved() {
     let (ca, mut card) = tap(&challenge);
     let Card::VisaFdda(c) = &mut card else { unreachable!() };
     c.sdad[64] ^= 1;
-    assert!(keys(Scheme::VisaFdda).0.prove(&challenge, &ca, &card).is_err());
+    assert!(keys(Scheme::VisaFdda).0.prove(&challenge, &ca, &card, None).is_err());
 }
 
 #[test]
@@ -315,6 +327,126 @@ fn wrong_length_card_fields_are_errors() {
     for mutate in mutations {
         let mut c = c.clone();
         mutate(&mut c);
-        assert!(keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &Card::MastercardDda(c)).is_err());
+        assert!(keys(Scheme::MastercardDda).0.prove(&challenge, &ca, &Card::MastercardDda(c), None).is_err());
     }
+}
+
+fn disclosing(scheme: Scheme, disclosure: Disclosure) -> Challenge<Issued> {
+    issue(scheme, Scope::Verifier, today()).disclose(bins().root(), disclosure)
+}
+
+/// `gen_synthetic.py`'s `BIN_ATTRIBUTES`; brand codes index the fixture's brand list.
+fn synthetic_attributes(scheme: Scheme) -> (Disclosed, &'static str) {
+    match scheme {
+        Scheme::VisaFdda => (
+            Disclosed {
+                country: Some(999),
+                card_type: Some(CardType::Credit),
+                brand: Some(2),
+                commercial: Some(false),
+            },
+            "VISA",
+        ),
+        Scheme::MastercardDda => (
+            Disclosed {
+                country: Some(998),
+                card_type: Some(CardType::Prepaid),
+                brand: Some(1),
+                commercial: Some(true),
+            },
+            "MASTERCARD",
+        ),
+    }
+}
+
+#[test]
+fn bin_attributes_are_disclosed() {
+    for scheme in SCHEMES {
+        let issued = disclosing(scheme, Disclosure::ALL);
+        let received = receive(&issued);
+        assert_eq!((received.disclosure(), received.bin_root()), (Disclosure::ALL, Some(bins().root())));
+        let proof = prove(&received).unwrap();
+        let verified = keys(scheme).1.verify(issued, &tap(&received).0, &proof).unwrap();
+        let (expected, brand) = synthetic_attributes(scheme);
+        assert_eq!(verified.bin, expected);
+        assert_eq!(bins().brand(verified.bin.brand.unwrap()), Some(brand));
+        assert!(verified.nullifier.is_some());
+    }
+}
+
+#[test]
+fn only_asked_attributes_are_disclosed() {
+    let cases = [
+        (
+            Disclosure::CARD_TYPE | Disclosure::COMMERCIAL,
+            Disclosed {
+                card_type: Some(CardType::Credit),
+                commercial: Some(false),
+                ..Disclosed::default()
+            },
+        ),
+        (Disclosure::NONE, Disclosed::default()),
+    ];
+    for (disclosure, expected) in cases {
+        let issued = disclosing(Scheme::VisaFdda, disclosure);
+        let received = receive(&issued);
+        let proof = prove(&received).unwrap();
+        assert_eq!(keys(Scheme::VisaFdda).1.verify(issued, &tap(&received).0, &proof).unwrap().bin, expected);
+    }
+}
+
+#[test]
+fn disclosure_needs_the_challenges_bin_table() {
+    let pk = &keys(Scheme::VisaFdda).0;
+    let received = receive(&disclosing(Scheme::VisaFdda, Disclosure::ALL));
+    let (ca, card) = tap(&received);
+    let err = pk.prove(&received, &ca, &card, None).unwrap_err();
+    assert!(matches!(err, Error::BinTable(_)), "{err}");
+
+    // Without the Visa tap's range, in slot 0.
+    let mut other = bins().clone();
+    other.remove(0).unwrap();
+    let err = pk.prove(&received, &ca, &card, Some(&other)).unwrap_err();
+    assert!(matches!(err, Error::BinTable(_)), "{err}");
+
+    let received = receive(&issue(Scheme::VisaFdda, Scope::Verifier, today()).disclose(other.root(), Disclosure::COUNTRY));
+    let (ca, card) = tap(&received);
+    let err = pk.prove(&received, &ca, &card, Some(&other)).unwrap_err();
+    assert!(matches!(err, Error::UnknownBin), "{err}");
+}
+
+/// The prover answers a challenge that asks for less.
+#[test]
+fn altered_disclosure_is_rejected() {
+    let issued = disclosing(Scheme::VisaFdda, Disclosure::ALL);
+    let mut bytes = issued.to_bytes();
+    // The disclosure byte precedes the 32-byte root; bit 0 is the country.
+    let at = bytes.len() - 33;
+    bytes[at] = 1;
+    let altered = Challenge::from_bytes(&bytes, common::ORIGIN).unwrap();
+    assert_eq!(altered.disclosure(), Disclosure::COUNTRY);
+    let proof = prove(&altered).unwrap();
+    let err = keys(Scheme::VisaFdda).1.verify(issued, &tap(&altered).0, &proof).unwrap_err();
+    assert!(matches!(err, Error::PublicInputsMismatch), "{err}");
+}
+
+/// The circuit's outputs are the last five public inputs: country, card type, brand,
+/// commercial, nullifier.
+#[test]
+fn forged_bin_attributes_are_rejected() {
+    let forge = |disclosure, add: u8| {
+        let issued = disclosing(Scheme::VisaFdda, disclosure);
+        let received = receive(&issued);
+        let mut forged: NoirProof = file::deserialize(&prove(&received).unwrap().to_bytes().unwrap()).unwrap();
+        let inputs = &mut forged.public_inputs.0;
+        let country = inputs.len() - 5;
+        inputs[country] += FieldElement::from(add);
+        let forged = Proof::from_bytes(&file::serialize(&forged).unwrap()).unwrap();
+        keys(Scheme::VisaFdda).1.verify(issued, &tap(&received).0, &forged).unwrap_err()
+    };
+    let err = forge(Disclosure::ALL, 1);
+    assert!(matches!(err, Error::ProveKit(_)), "{err}");
+    // An attribute not asked for must be 0.
+    let err = forge(Disclosure::NONE, 5);
+    assert!(matches!(err, Error::PublicInputsMismatch), "{err}");
 }

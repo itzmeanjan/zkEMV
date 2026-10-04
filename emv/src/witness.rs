@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 
 use acir::AcirField;
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, PrimeField, Zero};
 use noirc_abi::{Abi, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
-use crate::{Card, Error, Result, challenge::Fields};
+use crate::{Card, Error, Result, bin_table::Membership, challenge::Fields};
 
 const LIMB_BITS: usize = 120;
 const LIMB_BASE: u128 = 1 << LIMB_BITS;
@@ -25,6 +25,8 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr)
         ("nonce".to_owned(), bytes(&challenge.nonce)),
         ("today".to_owned(), field(challenge.today.yymm().into())),
         ("scope".to_owned(), native(scope)),
+        ("bin_root".to_owned(), native(challenge.bin.map_or_else(Fr::zero, |(root, _)| root.to_field()))),
+        ("disclose".to_owned(), field(challenge.bin.map_or(0, |(_, d)| d.bits()).into())),
     ]);
     if let Some(t) = challenge.transaction {
         map.insert("amount".to_owned(), bytes(&t.amount));
@@ -33,9 +35,10 @@ pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr)
     Ok(map)
 }
 
-pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card) -> Result<InputMap> {
+pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card, bin: &Membership) -> Result<InputMap> {
     let scheme = challenge.scheme;
     let mut map = public_input_map(challenge, ca_modulus, scope)?;
+    map.insert("bin".to_owned(), membership(bin));
     let (issuer_cert, icc_cert) = match card {
         Card::VisaFdda(c) => (&c.issuer_cert, &c.icc_cert),
         Card::MastercardDda(c) => (&c.issuer_cert, &c.icc_cert),
@@ -134,6 +137,19 @@ fn expect_len(field: &'static str, bytes: &[u8], expected: usize) -> Result<()> 
             actual: bytes.len(),
         })
     }
+}
+
+fn membership(m: &Membership) -> InputValue {
+    InputValue::Struct(BTreeMap::from([
+        ("low".to_owned(), field(m.low.into())),
+        ("high".to_owned(), field(m.high.into())),
+        ("country".to_owned(), field(m.country.into())),
+        ("card_type".to_owned(), field(m.card_type.into())),
+        ("brand".to_owned(), field(m.brand.into())),
+        ("commercial".to_owned(), field(m.commercial.into())),
+        ("slot".to_owned(), field(m.slot.into())),
+        ("siblings".to_owned(), InputValue::Vec(m.siblings.iter().copied().map(native).collect())),
+    ]))
 }
 
 fn field(v: u128) -> InputValue {

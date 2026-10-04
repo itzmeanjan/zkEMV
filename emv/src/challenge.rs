@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
 
-use crate::{Error, Nullifier, Result, Scheme, nullifier};
+use crate::{BinRoot, Disclosure, Error, Nullifier, Result, Scheme, nullifier};
 
 const VISA_FDDA: u8 = 0x01;
 const MASTERCARD_DDA: u8 = 0x02;
@@ -108,7 +108,8 @@ pub enum Issued {}
 pub enum Received {}
 
 /// What the verifier asks for: a card signature over a random nonce (for Visa, also the
-/// transaction), certificates valid in the current month, and a nullifier in a [`Scope`].
+/// transaction), certificates valid in the current month, a nullifier in a [`Scope`], and
+/// optionally attributes of the card's range in a BIN table.
 ///
 /// The verifier creates a [`Challenge<Issued>`], keeps it in memory, and sends
 /// [`Challenge::to_bytes`]. The prover reads that as a [`Challenge<Received>`], which can
@@ -156,6 +157,8 @@ pub(crate) struct Fields {
     pub(crate) scope: Scope,
     /// The circuit's `scope`; `None` only for an issued [`Scope::Unlinkable`].
     pub(crate) scope_value: Option<Fr>,
+    /// `Some` exactly when an attribute is asked for.
+    pub(crate) bin: Option<(BinRoot, Disclosure)>,
 }
 
 impl Challenge<Issued> {
@@ -189,7 +192,16 @@ impl Challenge<Issued> {
             transaction,
             scope,
             scope_value: scope.derive(origin),
+            bin: None,
         }))
+    }
+
+    /// Asks for `disclosure`'s attributes of the card's range in the BIN table with `root`.
+    /// [`Disclosure::NONE`] asks for none.
+    #[must_use]
+    pub fn disclose(mut self, root: BinRoot, disclosure: Disclosure) -> Self {
+        self.fields.bin = (!disclosure.is_empty()).then_some((root, disclosure));
+        self
     }
 
     /// Encodes the challenge for the prover.
@@ -201,6 +213,7 @@ impl Challenge<Issued> {
             today,
             transaction,
             scope,
+            bin,
             ..
         } = self.fields;
         let tag = match scheme {
@@ -217,6 +230,13 @@ impl Challenge<Issued> {
         out.push(scope.kind());
         if let Scope::Event(event) = scope {
             out.extend(event);
+        }
+        match bin {
+            Some((root, disclosure)) => {
+                out.push(disclosure.bits());
+                out.extend(root.to_bytes());
+            }
+            None => out.push(Disclosure::NONE.bits()),
         }
         out
     }
@@ -235,7 +255,8 @@ impl Challenge<Received> {
     ///
     /// # Errors
     ///
-    /// - [`Error::Challenge`]: unknown scheme or scope, or the wrong length for them.
+    /// - [`Error::Challenge`]: unknown scheme, scope or disclosure, the wrong length for them,
+    ///   or a BIN root that is not a field element.
     /// - [`Error::YearMonth`]: the month is invalid.
     /// - [`Error::Rng`]: the OS random number generator failed.
     pub fn from_bytes(bytes: &[u8], origin: &str) -> Result<Self> {
@@ -264,6 +285,14 @@ impl Challenge<Received> {
             SCOPE_EVENT => Scope::Event(take(&mut rest)?),
             _ => return Err(Error::Challenge("unknown scope")),
         };
+        let [bits] = take(&mut rest)?;
+        let disclosure = Disclosure::from_bits(bits).ok_or(Error::Challenge("unknown disclosure"))?;
+        let bin = if disclosure.is_empty() {
+            None
+        } else {
+            let root = BinRoot::from_bytes(take(&mut rest)?).ok_or(Error::Challenge("BIN root is not a field element"))?;
+            Some((root, disclosure))
+        };
 
         if !rest.is_empty() {
             return Err(Error::Challenge("trailing bytes"));
@@ -280,6 +309,7 @@ impl Challenge<Received> {
             transaction,
             scope,
             scope_value: Some(scope_value),
+            bin,
         }))
     }
 }
@@ -317,6 +347,18 @@ impl<S> Challenge<S> {
     #[must_use]
     pub fn scope(&self) -> Scope {
         self.fields.scope
+    }
+
+    /// The BIN table attributes the verifier asks for.
+    #[must_use]
+    pub fn disclosure(&self) -> Disclosure {
+        self.fields.bin.map_or(Disclosure::NONE, |(_, d)| d)
+    }
+
+    /// The root of the BIN table the prover must use; `None` when no attribute is asked for.
+    #[must_use]
+    pub fn bin_root(&self) -> Option<BinRoot> {
+        self.fields.bin.map(|(root, _)| root)
     }
 
     /// The nullifier a card whose ICC public key has `icc_modulus` gives for this challenge.

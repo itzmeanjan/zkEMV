@@ -13,7 +13,7 @@ fn prove_verify(c: &mut Criterion) {
         let received = common::receive(&issued);
         let (ca, card) = common::mock::tap(&received);
 
-        let proof = pk.prove(&received, &ca, &card).unwrap();
+        let proof = pk.prove(&received, &ca, &card, None).unwrap();
         vk.verify(issued, &ca, &proof).unwrap();
 
         println!(
@@ -26,7 +26,7 @@ fn prove_verify(c: &mut Criterion) {
         group.sample_size(10).sampling_mode(SamplingMode::Flat);
 
         group.measurement_time(Duration::from_secs(20));
-        group.bench_function("prove", |b| b.iter(|| pk.prove(&received, &ca, &card).unwrap()));
+        group.bench_function("prove", |b| b.iter(|| pk.prove(&received, &ca, &card, None).unwrap()));
 
         // Verifying consumes the issued challenge, so each iteration proves a fresh one
         // first, untimed; the short times keep that setup to a few dozen proofs.
@@ -38,7 +38,7 @@ fn prove_verify(c: &mut Criterion) {
                     let issued = common::issue(scheme, Scope::Verifier, common::today());
                     let received = common::receive(&issued);
                     let (ca, card) = common::mock::tap(&received);
-                    let proof = pk.prove(&received, &ca, &card).unwrap();
+                    let proof = pk.prove(&received, &ca, &card, None).unwrap();
                     (issued, ca, proof)
                 },
                 |(issued, ca, proof)| vk.verify(issued, &ca, &proof).unwrap(),

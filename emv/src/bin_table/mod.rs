@@ -4,7 +4,7 @@ mod tree;
 use std::collections::{BTreeMap, BTreeSet};
 
 use ark_bn254::Fr;
-use ark_ff::{Field, Zero};
+use ark_ff::{Field, PrimeField, Zero};
 use serde_json::{Map, Value};
 
 use crate::{Error, Result, nullifier::to_be_bytes};
@@ -57,6 +57,10 @@ impl CardType {
     fn from_name(name: &str) -> Option<Self> {
         [Self::Credit, Self::Debit, Self::Prepaid].into_iter().find(|t| t.name() == name)
     }
+
+    pub(crate) fn from_code(code: u64) -> Option<Self> {
+        [Self::Credit, Self::Debit, Self::Prepaid].into_iter().find(|t| t.code() == code)
+    }
 }
 
 /// Attributes of a range's cards.
@@ -94,8 +98,48 @@ impl BinRoot {
         self.0
     }
 
+    /// `None` unless a field element below the BN254 scalar modulus.
+    #[must_use]
+    pub fn from_bytes(bytes: [u8; 32]) -> Option<Self> {
+        let root = Self::from_field(Fr::from_be_bytes_mod_order(&bytes));
+        (root.0 == bytes).then_some(root)
+    }
+
+    pub(crate) fn to_field(self) -> Fr {
+        Fr::from_be_bytes_mod_order(&self.0)
+    }
+
     fn from_field(f: Fr) -> Self {
         Self(to_be_bytes(f))
+    }
+}
+
+/// A range's leaf fields and Merkle path: the circuit's `BinMembership`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Membership {
+    pub(crate) low: u64,
+    pub(crate) high: u64,
+    pub(crate) country: u16,
+    pub(crate) card_type: u64,
+    pub(crate) brand: u64,
+    pub(crate) commercial: bool,
+    pub(crate) slot: u64,
+    pub(crate) siblings: Vec<Fr>,
+}
+
+impl Membership {
+    /// For a proof that discloses nothing.
+    pub(crate) fn empty() -> Self {
+        Self {
+            low: 0,
+            high: 0,
+            country: 0,
+            card_type: 0,
+            brand: 0,
+            commercial: false,
+            slot: 0,
+            siblings: vec![Fr::zero(); DEPTH],
+        }
     }
 }
 
@@ -158,6 +202,28 @@ impl BinTable {
         let (_, &slot) = self.by_low.range(..=prefix).next_back()?;
         let range = self.get(slot)?;
         (prefix <= range.high).then_some((slot, range))
+    }
+
+    /// The brand whose code a proof disclosed.
+    #[must_use]
+    pub fn brand(&self, code: u8) -> Option<&str> {
+        self.brands.get(usize::from(code).checked_sub(1)?).map(String::as_str)
+    }
+
+    pub(crate) fn membership(&self, prefix: u64) -> Option<Membership> {
+        let (slot, range) = self.find(prefix)?;
+        let a = &range.attributes;
+        let brand = self.brands.iter().position(|b| *b == a.brand).and_then(|i| u64::try_from(i).ok())?;
+        Some(Membership {
+            low: range.low,
+            high: range.high,
+            country: a.country,
+            card_type: a.card_type.code(),
+            brand: brand.checked_add(1)?,
+            commercial: a.commercial,
+            slot: u64::try_from(slot).ok()?,
+            siblings: self.tree.path(slot),
+        })
     }
 
     /// Puts `range` in the lowest empty slot.

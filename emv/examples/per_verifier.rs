@@ -9,21 +9,21 @@ mod common;
 use std::collections::HashSet;
 
 use common::{ORIGIN, ZERO_USD, check, phone, setup, today};
-use emv::{Challenge, Nullifier, Scope};
+use emv::{Challenge, Nullifier, Scheme, Scope};
 
 fn short(n: Nullifier) -> String {
     const_hex::encode(&n.to_bytes()[..8])
 }
 
 fn main() -> emv::Result<()> {
-    let (pk, vk, table) = setup()?;
+    let (pk, vk, table) = setup(Scheme::VisaFdda)?;
     // The verifier's record of claimed trials; in production, a unique database column.
     let mut claimed = HashSet::new();
 
     for attempt in 1..=2 {
         let challenge = Challenge::visa_fdda(ORIGIN, Scope::Verifier, today()?, ZERO_USD)?;
         let response = phone(&pk, &challenge.to_bytes(), ORIGIN)?;
-        let nullifier = check(&vk, &table, challenge, &response)?.expect("a verifier scope gives a nullifier");
+        let nullifier = check(&vk, &table, challenge, &response)?.nullifier.expect("a verifier scope gives a nullifier");
 
         let outcome = if claimed.insert(nullifier) {
             "trial granted"
@@ -38,7 +38,7 @@ fn main() -> emv::Result<()> {
     let other = "other.example";
     let challenge = Challenge::visa_fdda(other, Scope::Verifier, today()?, ZERO_USD)?;
     let response = phone(&pk, &challenge.to_bytes(), other)?;
-    let nullifier = check(&vk, &table, challenge, &response)?.expect("a verifier scope gives a nullifier");
+    let nullifier = check(&vk, &table, challenge, &response)?.nullifier.expect("a verifier scope gives a nullifier");
 
     assert!(!claimed.contains(&nullifier));
     println!("{other}: nullifier {}.., unrelated to {ORIGIN}'s", short(nullifier));

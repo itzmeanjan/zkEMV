@@ -52,9 +52,13 @@ pub enum Error {
     #[error("invalid CA key table: {0}")]
     CaTable(&'static str),
 
-    /// A BIN table is malformed, or a change would make it invalid.
+    /// A BIN table is malformed, a change would make it invalid, or it is not the challenge's.
     #[error("invalid BIN table: {0}")]
     BinTable(&'static str),
+
+    /// No range of the BIN table holds the card's PAN.
+    #[error("the BIN table has no range for the card")]
+    UnknownBin,
 
     /// No trusted CA key fits: unknown, of another scheme, width or exponent, or expired.
     #[error("CA key: {0}")]

@@ -10,7 +10,9 @@ use provekit_r1cs_compiler::NoirProofSchemeBuilder;
 use provekit_verifier::Verify;
 
 use crate::{
-    CaKey, Card, Challenge, Error, Issued, Nullifier, Received, Result, Scheme,
+    BinTable, CaKey, Card, Challenge, Disclosed, Error, Issued, Nullifier, Received, Result, Scheme,
+    bin_table::Membership,
+    pan,
     witness::{input_map, public_input_map, public_inputs, scope_offset},
 };
 
@@ -57,7 +59,8 @@ impl ProvingKey {
     }
 
     /// Proves that `card` signed `challenge`, under `ca`: the key the card names, from
-    /// [`CaTable::lookup`](crate::CaTable::lookup).
+    /// [`CaTable::lookup`](crate::CaTable::lookup). If the challenge asks for BIN attributes,
+    /// `bins` must be the table with its root; otherwise it is ignored.
     ///
     /// Blocking and CPU-bound. Runs on rayon's global thread pool. Clones the key.
     ///
@@ -67,10 +70,14 @@ impl ProvingKey {
     /// - [`Error::CaKey`]: `ca` is for another scheme, or expired before the challenge's
     ///   month.
     /// - [`Error::Length`]: `issuer_cert` or `icc_cert` has the wrong length.
-    /// - [`Error::Card`]: the static data is too long.
+    /// - [`Error::Card`]: the static data is too long, or, when BIN attributes are asked for,
+    ///   a certificate doesn't recover or the PAN has fewer than 12 digits.
+    /// - [`Error::BinTable`]: BIN attributes are asked for, but `bins` is `None` or has
+    ///   another root.
+    /// - [`Error::UnknownBin`]: no range of `bins` holds the card's PAN.
     /// - [`Error::ProveKit`]: the inputs fail a circuit constraint, e.g. a certificate doesn't
     ///   recover to a key of the scheme's width.
-    pub fn prove(&self, challenge: &Challenge<Received>, ca: &CaKey, card: &Card) -> Result<Proof> {
+    pub fn prove(&self, challenge: &Challenge<Received>, ca: &CaKey, card: &Card, bins: Option<&BinTable>) -> Result<Proof> {
         for data in [challenge.scheme(), card.scheme()] {
             if data != self.scheme {
                 return Err(Error::SchemeMismatch { key: self.scheme, data });
@@ -78,7 +85,14 @@ impl ProvingKey {
         }
         ca.check(challenge.fields())?;
         let scope = challenge.fields().scope_value.ok_or(Error::Challenge("received without a scope"))?;
-        let inputs = input_map(challenge.fields(), ca.modulus(), scope, card)?;
+        let membership = match challenge.bin_root() {
+            None => Membership::empty(),
+            Some(root) => {
+                let table = bins.filter(|t| t.root() == root).ok_or(Error::BinTable("not the challenge's table"))?;
+                table.membership(pan::prefix(card, ca.modulus())?).ok_or(Error::UnknownBin)?
+            }
+        };
+        let inputs = input_map(challenge.fields(), ca.modulus(), scope, card, &membership)?;
         provekit(|| self.prover.clone().prove(inputs)).map(Proof)
     }
 
@@ -119,9 +133,8 @@ impl VerifyingKey {
         self.scheme
     }
 
-    /// Verifies that `proof` answers `challenge` under `ca`. `Ok` means accept, with the
-    /// card's nullifier in the challenge's [`Scope`](crate::Scope), or `None` for
-    /// [`Scope::Unlinkable`](crate::Scope::Unlinkable).
+    /// Verifies that `proof` answers `challenge` under `ca`. `Ok` means accept, with what the
+    /// proof shows beyond the signature.
     ///
     /// Recognising a repeated nullifier is the caller's job, e.g. a unique database column.
     ///
@@ -138,7 +151,7 @@ impl VerifyingKey {
     ///   month.
     /// - [`Error::PublicInputsMismatch`]: the proof is for another challenge or CA key.
     /// - [`Error::ProveKit`]: the proof is invalid.
-    pub fn verify(&self, challenge: Challenge<Issued>, ca: &CaKey, proof: &Proof) -> Result<Option<Nullifier>> {
+    pub fn verify(&self, challenge: Challenge<Issued>, ca: &CaKey, proof: &Proof) -> Result<Verified> {
         if challenge.scheme() != self.scheme {
             return Err(Error::SchemeMismatch {
                 key: self.scheme,
@@ -147,20 +160,29 @@ impl VerifyingKey {
         }
         let challenge = challenge.into_fields();
         ca.check(&challenge)?;
-        // `main`'s parameters, then its return value: the nullifier.
-        let (&nullifier, carried) = proof.0.public_inputs.0.split_last().ok_or(Error::PublicInputsMismatch)?;
+        let carried = &proof.0.public_inputs.0;
         let scope = match challenge.scope_value {
             Some(scope) => scope,
             // The prover drew it; any value is fine.
             None => *carried.get(scope_offset(&self.verifier.abi)?).ok_or(Error::PublicInputsMismatch)?,
         };
         let expected = public_inputs(&self.verifier.abi, &public_input_map(&challenge, ca.modulus(), scope)?)?;
-        if carried != expected {
+        // `main`'s parameters, then its return value: the BIN attributes and the nullifier.
+        let (parameters, outputs) = carried.split_at_checked(expected.len()).ok_or(Error::PublicInputsMismatch)?;
+        let &[country, card_type, brand, commercial, nullifier] = outputs else {
+            return Err(Error::PublicInputsMismatch);
+        };
+        if parameters != expected {
             return Err(Error::PublicInputsMismatch);
         }
+        let disclosure = challenge.bin.map(|(_, d)| d).unwrap_or_default();
+        let bin = Disclosed::from_outputs(disclosure, [country, card_type, brand, commercial]).ok_or(Error::PublicInputsMismatch)?;
         // A `Verifier` is consumed by one verification.
         provekit(|| self.verifier.clone().verify(&proof.0))?;
-        Ok(challenge.scope_value.map(|_| Nullifier::from_field(nullifier)))
+        Ok(Verified {
+            nullifier: challenge.scope_value.map(|_| Nullifier::from_field(nullifier)),
+            bin,
+        })
     }
 
     /// Serializes to ProveKit's `.pkv` format.
@@ -184,6 +206,16 @@ impl VerifyingKey {
         let scheme = Scheme::from_abi(&verifier.abi)?;
         Ok(Self { scheme, verifier })
     }
+}
+
+/// What a verified proof shows beyond the card's signature.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Verified {
+    /// The card's nullifier in the challenge's [`Scope`](crate::Scope); `None` for
+    /// [`Scope::Unlinkable`](crate::Scope::Unlinkable).
+    pub nullifier: Option<Nullifier>,
+    /// The BIN table attributes the challenge asked for.
+    pub bin: Disclosed,
 }
 
 /// A proof. Contains the public inputs and no card data.

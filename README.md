@@ -74,7 +74,7 @@ python3 circuits/scripts/gen_circuit_inputs.py  # verifies each fixture natively
 make examples
 ```
 
-Runs one example per scope on `visa_fdda` circuit, with a mock card: a synthetic tap re-signed for each challenge under a test CA.
+Runs one example per scope on `visa_fdda` circuit, and one disclosing BIN table attributes on both circuits, with a mock card: a synthetic tap re-signed for each challenge under a test CA.
 
 ## Benchmarks
 

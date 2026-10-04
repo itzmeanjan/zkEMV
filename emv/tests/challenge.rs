@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use emv::{Challenge, Error, Issued, Received, Scheme, Scope, Transaction, YearMonth};
+use emv::{BinRoot, Challenge, Disclosure, Error, Issued, Received, Scheme, Scope, Transaction, YearMonth};
 
 const ORIGIN: &str = "verifier.example";
 
@@ -123,9 +123,12 @@ fn malformed_challenges_are_errors() {
         [&mastercard[..], &[0]].concat(),
         with(&visa, 0, mastercard[0]),
         with(&mastercard, 0, visa[0]),
-        // Scope kind: the last byte of a `Scope::Verifier` challenge.
-        with(&mastercard, mastercard.len() - 1, 3),
-        [&mastercard[..mastercard.len() - 1], &[2], &[0; 31]].concat(),
+        // Scope kind: the second-to-last byte of a `Scope::Verifier` challenge.
+        with(&mastercard, mastercard.len() - 2, 3),
+        [&mastercard[..mastercard.len() - 2], &[2], &[0; 31]].concat(),
+        // Disclosure: the last byte when nothing is asked.
+        with(&mastercard, mastercard.len() - 1, 0x10),
+        with(&mastercard, mastercard.len() - 1, 1),
     ];
     for bytes in malformed {
         let err = Challenge::from_bytes(&bytes, ORIGIN).unwrap_err();
@@ -136,5 +139,42 @@ fn malformed_challenges_are_errors() {
     for bytes in [with(&mastercard, 6, 0), with(&mastercard, 6, 13), with(&visa, 5, 100)] {
         let err = Challenge::from_bytes(&bytes, ORIGIN).unwrap_err();
         assert!(matches!(err, Error::YearMonth { .. }), "{bytes:02x?}: {err}");
+    }
+}
+
+fn root(last: u8) -> BinRoot {
+    let mut bytes = [0; 32];
+    bytes[31] = last;
+    BinRoot::from_bytes(bytes).unwrap()
+}
+
+#[test]
+fn disclosure_round_trips() {
+    for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
+        let none = receive(&issue(scheme), ORIGIN);
+        assert_eq!((none.disclosure(), none.bin_root()), (Disclosure::NONE, None));
+
+        let asked = Disclosure::COUNTRY | Disclosure::COMMERCIAL;
+        let received = receive(&issue(scheme).disclose(root(7), asked), ORIGIN);
+        assert_eq!((received.disclosure(), received.bin_root()), (asked, Some(root(7))));
+        assert!(received.disclosure().contains(Disclosure::COUNTRY) && !received.disclosure().contains(Disclosure::BRAND));
+
+        let dropped = receive(&issue(scheme).disclose(root(7), Disclosure::NONE), ORIGIN);
+        assert_eq!(dropped.bin_root(), None);
+    }
+}
+
+#[test]
+fn bin_root_must_be_a_field_element() {
+    assert!(BinRoot::from_bytes([0xFF; 32]).is_none());
+    let bytes = issue(Scheme::MastercardDda).disclose(root(7), Disclosure::ALL).to_bytes();
+    let malformed = [
+        [&bytes[..bytes.len() - 32], &[0xFF; 32]].concat(),
+        bytes[..bytes.len() - 1].to_vec(),
+        [&bytes[..], &[0]].concat(),
+    ];
+    for bytes in malformed {
+        let err = Challenge::from_bytes(&bytes, ORIGIN).unwrap_err();
+        assert!(matches!(err, Error::Challenge(_)), "{bytes:02x?}: {err}");
     }
 }
