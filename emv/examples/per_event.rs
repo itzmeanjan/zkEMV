@@ -9,11 +9,7 @@ mod common;
 use std::collections::HashSet;
 
 use common::{ORIGIN, ZERO_USD, check, phone, setup, today};
-use emv::{Challenge, Nullifier, Scheme, Scope};
-
-fn short(n: Nullifier) -> String {
-    const_hex::encode(&n.to_bytes()[..8])
-}
+use emv::{Challenge, Scheme, Scope};
 
 /// The event's identifier: here its name, zero-padded; a hash of it works as well.
 fn poll(name: &str) -> Scope {
@@ -33,12 +29,12 @@ fn main() -> emv::Result<()> {
         let nullifier = check(&vk, &table, challenge, &response)?.nullifier.expect("an event scope gives a nullifier");
 
         let outcome = if voted.insert((name, nullifier)) {
-            "vote counted"
+            "✅ vote counted"
         } else {
-            "refused: this card already voted"
+            "❗ refused: this card already voted"
         };
 
-        println!("{name}: nullifier {}.. {outcome}", short(nullifier));
+        println!("{name}: nullifier 0x{} {outcome}", const_hex::encode(&nullifier.to_bytes()));
     }
 
     Ok(())
