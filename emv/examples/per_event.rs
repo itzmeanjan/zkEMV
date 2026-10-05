@@ -9,11 +9,7 @@ mod common;
 use std::collections::HashSet;
 
 use common::{ORIGIN, ZERO_USD, check, phone, setup, today};
-use emv::{Challenge, Nullifier, Scope};
-
-fn short(n: Nullifier) -> String {
-    const_hex::encode(&n.to_bytes()[..8])
-}
+use emv::{Challenge, Scheme, Scope};
 
 /// The event's identifier: here its name, zero-padded; a hash of it works as well.
 fn poll(name: &str) -> Scope {
@@ -23,22 +19,22 @@ fn poll(name: &str) -> Scope {
 }
 
 fn main() -> emv::Result<()> {
-    let (pk, vk, table) = setup()?;
+    let (pk, vk, table) = setup(Scheme::VisaFdda)?;
     // In production, a unique database column over (poll, nullifier).
     let mut voted = HashSet::new();
 
     for name in ["poll-2026-10", "poll-2026-10", "poll-2026-11"] {
         let challenge = Challenge::visa_fdda(ORIGIN, poll(name), today()?, ZERO_USD)?;
         let response = phone(&pk, &challenge.to_bytes(), ORIGIN)?;
-        let nullifier = check(&vk, &table, challenge, &response)?.expect("an event scope gives a nullifier");
+        let nullifier = check(&vk, &table, challenge, &response)?.nullifier.expect("an event scope gives a nullifier");
 
         let outcome = if voted.insert((name, nullifier)) {
-            "vote counted"
+            "✅ vote counted"
         } else {
-            "refused: this card already voted"
+            "❗ refused: this card already voted"
         };
 
-        println!("{name}: nullifier {}.. {outcome}", short(nullifier));
+        println!("{name}: nullifier 0x{} {outcome}", const_hex::encode(nullifier.to_bytes()));
     }
 
     Ok(())

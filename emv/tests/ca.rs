@@ -13,8 +13,8 @@ fn challenge(scheme: Scheme, year: u16, month: u8) -> Challenge<Issued> {
             Scope::Verifier,
             today,
             Transaction {
-                amount: [0; 6],
-                currency: [0x08, 0x40],
+                amount_authorised: [0; 6],
+                currency_code: [0x08, 0x40],
             },
         ),
         Scheme::MastercardDda => Challenge::mastercard_dda("verifier.example", Scope::Verifier, today),

@@ -2,16 +2,22 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField, Zero};
 use taceo_poseidon2::bn254::t4::permutation_in_place;
 
-/// `circuits/emv/src/nullifier.nr`'s `DOMAIN_SEPARATOR`.
+use crate::{challenge::EVENT_ID_BYTE_LEN, layout::FIELD_BYTE_LEN};
+
 const NULLIFIER_DOMAIN_SEPARATOR: &[u8] = b"zkEMV nullifier v1";
-/// Scopes are derived on the host only.
 const SCOPE_DOMAIN_SEPARATOR: &[u8] = b"zkEMV scope v1";
-/// Bytes per lane: 31 bytes always fit in a field element.
-const CHUNK: usize = 31;
-/// The circuit packs the ICC modulus into six lanes.
-const LANES: usize = 6;
-const RATE: usize = 3;
-const TWO_POW_64: u128 = 1 << 64;
+
+pub(crate) const LANE_BYTE_LEN: usize = 31;
+const LANE_COUNT: usize = 6;
+const DOMAIN_SEPARATOR_INDEX: usize = 0;
+const SCOPE_INDEX: usize = DOMAIN_SEPARATOR_INDEX + 1;
+const FIRST_LANE_INDEX: usize = SCOPE_INDEX + 1;
+const HASH_INPUT_FIELD_COUNT: usize = FIRST_LANE_INDEX + LANE_COUNT;
+
+/// noir-lang/poseidon's sponge: t = 4, rate 3, the input length times 2^64 in the capacity lane.
+const SPONGE_WIDTH: usize = 4;
+const SPONGE_RATE: usize = SPONGE_WIDTH - 1;
+const LENGTH_TAG_SCALE: u128 = 1 << u64::BITS;
 
 /// A card's identifier in one scope, from a proof.
 ///
@@ -19,22 +25,24 @@ const TWO_POW_64: u128 = 1 << 64;
 /// scopes give unrelated ones. It hashes the card's ICC public key, so anyone who has read
 /// the card, such as a terminal or the issuer, can compute it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Nullifier([u8; 32]);
+pub struct Nullifier([u8; FIELD_BYTE_LEN]);
 
 impl Nullifier {
     /// The field element, big-endian.
     #[must_use]
-    pub fn to_bytes(self) -> [u8; 32] {
+    pub fn to_bytes(self) -> [u8; FIELD_BYTE_LEN] {
         self.0
     }
 
     pub(crate) fn from_field(f: Fr) -> Self {
-        let mut out = [0; 32];
-        for (o, b) in out.iter_mut().rev().zip(f.into_bigint().to_bytes_le()) {
-            *o = b;
-        }
-        Self(out)
+        Self(to_be_bytes(f))
     }
+}
+
+pub(crate) fn to_be_bytes(f: Fr) -> [u8; FIELD_BYTE_LEN] {
+    let mut out = [0; FIELD_BYTE_LEN];
+    out.copy_from_slice(&f.into_bigint().to_bytes_be());
+    out
 }
 
 /// The circuit's nullifier: Poseidon2 of `[NULLIFIER_DOMAIN_SEPARATOR, scope, m₀, …, m₅]`,
@@ -42,15 +50,15 @@ impl Nullifier {
 pub(crate) fn nullifier(icc_modulus: &[u8], scope: Fr) -> Option<Fr> {
     let mut input = vec![domain_separator(NULLIFIER_DOMAIN_SEPARATOR), scope];
     input.extend(lanes(icc_modulus));
-    (input.len() <= 2 + LANES).then(|| {
-        input.resize(2 + LANES, Fr::zero());
+    (input.len() <= HASH_INPUT_FIELD_COUNT).then(|| {
+        input.resize(HASH_INPUT_FIELD_COUNT, Fr::zero());
         hash(&input)
     })
 }
 
 /// Lane values: 0 for [`Scope::Unlinkable`](crate::Scope::Unlinkable), which is never
 /// derived, 1 for a verifier, 2 for an event. The lengths make the encoding injective.
-pub(crate) fn scope(kind: u8, origin: &str, event: Option<&[u8; 32]>) -> Fr {
+pub(crate) fn scope(kind: u8, origin: &str, event: Option<&[u8; EVENT_ID_BYTE_LEN]>) -> Fr {
     let mut input = vec![
         domain_separator(SCOPE_DOMAIN_SEPARATOR),
         Fr::from(kind),
@@ -66,25 +74,28 @@ fn domain_separator(ascii: &[u8]) -> Fr {
 }
 
 fn lanes(bytes: &[u8]) -> impl Iterator<Item = Fr> + '_ {
-    bytes.chunks(CHUNK).map(Fr::from_be_bytes_mod_order)
+    bytes.chunks(LANE_BYTE_LEN).map(Fr::from_be_bytes_mod_order)
 }
 
 /// noir-lang/poseidon's `Poseidon2::hash`: t = 4, rate 3, the input length times 2^64 in
 /// the capacity lane, a permutation per block including a final partial one, output lane 0.
-fn hash(input: &[Fr]) -> Fr {
-    let mut state = [Fr::zero(); 4];
+pub(crate) fn hash(input: &[Fr]) -> Fr {
+    let mut state = [Fr::zero(); SPONGE_WIDTH];
     if let Some(capacity) = state.last_mut() {
-        *capacity = Fr::from_be_bytes_mod_order(&input.len().to_be_bytes()) * Fr::from(TWO_POW_64);
+        *capacity = Fr::from_be_bytes_mod_order(&input.len().to_be_bytes()) * Fr::from(LENGTH_TAG_SCALE);
     }
-    for block in input.chunks(RATE) {
+
+    for block in input.chunks(SPONGE_RATE) {
         for (lane, x) in state.iter_mut().zip(block) {
             *lane += x;
         }
         permutation_in_place(&mut state);
     }
+
     if input.is_empty() {
         permutation_in_place(&mut state);
     }
+
     let [out, ..] = state;
     out
 }

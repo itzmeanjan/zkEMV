@@ -1,110 +1,160 @@
-use std::collections::BTreeMap;
-
 use acir::AcirField;
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
-use noirc_abi::{Abi, InputMap, input_parser::InputValue};
+use ark_ff::{BigInteger, PrimeField, Zero};
+use noirc_abi::{Abi, AbiType, InputMap, input_parser::InputValue};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use provekit_common::{FieldElement, NoirElement, utils::noir_to_native};
 
-use crate::{Card, Error, Result, challenge::Fields};
+use crate::{Card, Error, Result, bin_table::Membership, challenge::Fields};
 
-const LIMB_BITS: usize = 120;
-const LIMB_BASE: u128 = 1 << LIMB_BITS;
-/// `mastercard_dda`'s `MAX_STATIC_DATA_LEN`.
-const MAX_STATIC_DATA_LEN: u16 = 256;
+/// The circuits' `LIMB_BIT_LEN`.
+const LIMB_BIT_LEN: usize = 120;
+const LIMB_BASE: u128 = 1 << LIMB_BIT_LEN;
 
 pub(crate) fn public_input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr) -> Result<InputMap> {
     let scheme = challenge.scheme;
-    expect_len("ca_modulus", ca_modulus, scheme.ca_bits() / 8)?;
+    expect_len("ca_modulus", ca_modulus, scheme.ca_pubkey_byte_len())?;
     let ca = BigUint::from_bytes_be(ca_modulus);
 
     let mut map = InputMap::from([
-        ("ca_modulus".to_owned(), limbs_value(limbs(&ca, scheme.ca_bits())?)),
-        ("nonce".to_owned(), bytes(&challenge.nonce)),
-        ("today".to_owned(), field(challenge.today.yymm().into())),
-        ("scope".to_owned(), native(scope)),
+        (
+            "trust_anchors".to_owned(),
+            record([
+                ("ca_modulus", limbs_value(limbs(&ca, scheme.ca_pubkey_bit_len())?)),
+                ("bin_root", native(challenge.bin.map_or_else(Fr::zero, |(root, _)| root.to_field()))),
+            ]),
+        ),
+        (
+            "challenge".to_owned(),
+            record([
+                ("nonce", bytes(&challenge.nonce)),
+                ("today_yymm", field(challenge.today.yymm().into())),
+                ("scope", native(scope)),
+                ("disclosure", field(challenge.bin.map_or(0, |(_, d)| d.bits()).into())),
+            ]),
+        ),
     ]);
     if let Some(t) = challenge.transaction {
-        map.insert("amount".to_owned(), bytes(&t.amount));
-        map.insert("currency".to_owned(), bytes(&t.currency));
+        map.insert(
+            "transaction".to_owned(),
+            record([("amount_authorised", bytes(&t.amount_authorised)), ("currency_code", bytes(&t.currency_code))]),
+        );
     }
     Ok(map)
 }
 
-pub(crate) fn input_map(challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card) -> Result<InputMap> {
+pub(crate) fn input_map(abi: &Abi, challenge: &Fields, ca_modulus: &[u8], scope: Fr, card: &Card, bin: &Membership) -> Result<InputMap> {
     let scheme = challenge.scheme;
     let mut map = public_input_map(challenge, ca_modulus, scope)?;
+    map.insert("bin_membership".to_owned(), membership(bin));
     let (issuer_cert, icc_cert) = match card {
-        Card::VisaFdda(c) => (&c.issuer_cert, &c.icc_cert),
-        Card::MastercardDda(c) => (&c.issuer_cert, &c.icc_cert),
+        Card::VisaFdda(c) => (&c.issuer_pubkey_cert, &c.icc_pubkey_cert),
+        Card::MastercardDda(c) => (&c.issuer_pubkey_cert, &c.icc_pubkey_cert),
     };
-    expect_len("issuer_cert", issuer_cert, scheme.ca_bits() / 8)?;
-    expect_len("icc_cert", icc_cert, scheme.issuer_bits() / 8)?;
-    match card {
-        Card::VisaFdda(c) => map.extend([
-            ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
-            ("issuer_exponent".to_owned(), field(c.issuer_exponent.into())),
-            ("icc_cert".to_owned(), bytes(&c.icc_cert)),
-            ("icc_exponent".to_owned(), field(c.icc_exponent.into())),
-            ("sdad".to_owned(), bytes(&c.sdad)),
-            ("card_auth_data".to_owned(), bytes(&c.card_auth_data)),
+    expect_len("issuer_pubkey_cert", issuer_cert, scheme.ca_pubkey_byte_len())?;
+    expect_len("icc_pubkey_cert", icc_cert, scheme.issuer_pubkey_byte_len())?;
+    let card = match card {
+        Card::VisaFdda(c) => record([
+            ("issuer_pubkey_cert", bytes(&c.issuer_pubkey_cert)),
+            ("issuer_pubkey_exponent", field(c.issuer_pubkey_exponent.into())),
+            ("icc_pubkey_cert", bytes(&c.icc_pubkey_cert)),
+            ("icc_pubkey_exponent", field(c.icc_pubkey_exponent.into())),
+            ("signed_dynamic_app_data", bytes(&c.signed_dynamic_app_data)),
+            ("card_auth_related_data", bytes(&c.card_auth_related_data)),
         ]),
         Card::MastercardDda(c) => {
-            let len = u16::try_from(c.static_data.len())
+            let capacity = static_data_capacity(abi)?;
+            let static_data = &c.static_data_to_authenticate;
+            let len = u128::try_from(static_data.len())
                 .ok()
-                .filter(|&len| len <= MAX_STATIC_DATA_LEN)
-                .ok_or(Error::Card("static data exceeds the circuit's 256-byte bound"))?;
-            let mut storage = c.static_data.clone();
-            storage.resize(MAX_STATIC_DATA_LEN.into(), 0);
-            let static_data = InputValue::Struct(BTreeMap::from([("storage".to_owned(), bytes(&storage)), ("len".to_owned(), field(len.into()))]));
-            map.extend([
-                ("issuer_cert".to_owned(), bytes(&c.issuer_cert)),
-                ("issuer_remainder".to_owned(), bytes(&c.issuer_remainder)),
-                ("issuer_exponent".to_owned(), field(c.issuer_exponent.into())),
-                ("icc_cert".to_owned(), bytes(&c.icc_cert)),
-                ("icc_exponent".to_owned(), field(c.icc_exponent.into())),
-                ("static_data".to_owned(), static_data),
-                ("sdad".to_owned(), bytes(&c.sdad)),
-            ]);
+                .filter(|_| static_data.len() <= capacity)
+                .ok_or(Error::Card("static data exceeds the circuit's bound"))?;
+            let mut storage = static_data.clone();
+            storage.resize(capacity, 0);
+            record([
+                ("issuer_pubkey_cert", bytes(&c.issuer_pubkey_cert)),
+                ("issuer_pubkey_remainder", bytes(&c.issuer_pubkey_remainder)),
+                ("issuer_pubkey_exponent", field(c.issuer_pubkey_exponent.into())),
+                ("icc_pubkey_cert", bytes(&c.icc_pubkey_cert)),
+                ("icc_pubkey_exponent", field(c.icc_pubkey_exponent.into())),
+                ("static_data_to_authenticate", record([("storage", bytes(&storage)), ("len", field(len))])),
+                ("signed_dynamic_app_data", bytes(&c.signed_dynamic_app_data)),
+            ])
         }
-    }
+    };
+    map.insert("card".to_owned(), card);
     Ok(map)
 }
 
-/// In the order ProveKit binds them into a proof: `main`'s public parameters, flattened.
+/// In the order ProveKit binds them into a proof: `main`'s public parameters, flattened in the
+/// ABI's field order.
 pub(crate) fn public_inputs(abi: &Abi, map: &InputMap) -> Result<Vec<FieldElement>> {
-    let unknown = || Error::UnknownCircuit(abi.parameter_names().into_iter().cloned().collect());
     let mut out = Vec::new();
     for p in abi.parameters.iter().filter(|p| p.is_public()) {
-        let value = map.get(&p.name).ok_or_else(unknown)?;
-        flatten(value, &mut out).ok_or_else(unknown)?;
+        let value = map.get(&p.name).ok_or_else(|| unknown(abi))?;
+        flatten(value, &p.typ, &mut out).ok_or_else(|| unknown(abi))?;
     }
     Ok(out)
 }
 
-pub(crate) fn scope_offset(abi: &Abi) -> Result<usize> {
-    let unknown = || Error::UnknownCircuit(abi.parameter_names().into_iter().cloned().collect());
-    let mut offset: usize = 0;
-    for p in abi.parameters.iter().filter(|p| p.is_public()) {
-        if p.name == "scope" {
-            return Ok(offset);
-        }
-        offset = offset.saturating_add(usize::try_from(p.typ.field_count()).map_err(|_| unknown())?);
+/// The storage length of the circuit's `card.static_data_to_authenticate` bounded vector.
+fn static_data_capacity(abi: &Abi) -> Result<usize> {
+    let card = abi.parameters.iter().find(|p| p.name == "card").map(|p| &p.typ);
+    match card
+        .and_then(|t| field_type(t, "static_data_to_authenticate"))
+        .and_then(|t| field_type(t, "storage"))
+    {
+        Some(AbiType::Array { length, .. }) => usize::try_from(*length).ok(),
+        _ => None,
     }
-    Err(unknown())
+    .ok_or_else(|| unknown(abi))
 }
 
-fn flatten(value: &InputValue, out: &mut Vec<FieldElement>) -> Option<()> {
-    match value {
-        InputValue::Field(f) => out.push(noir_to_native(*f)),
-        InputValue::Vec(values) => {
+/// Where `challenge.scope` is among the flattened public inputs.
+pub(crate) fn scope_offset(abi: &Abi) -> Result<usize> {
+    let count = |t: &AbiType| usize::try_from(t.field_count()).map_err(|_| unknown(abi));
+    let mut offset: usize = 0;
+    for p in abi.parameters.iter().filter(|p| p.is_public()) {
+        let AbiType::Struct { fields, .. } = &p.typ else {
+            offset = offset.saturating_add(count(&p.typ)?);
+            continue;
+        };
+        for (name, typ) in fields {
+            if p.name == "challenge" && name == "scope" {
+                return Ok(offset);
+            }
+            offset = offset.saturating_add(count(typ)?);
+        }
+    }
+    Err(unknown(abi))
+}
+
+fn field_type<'a>(typ: &'a AbiType, name: &str) -> Option<&'a AbiType> {
+    match typ {
+        AbiType::Struct { fields, .. } => fields.iter().find(|(n, _)| n == name).map(|(_, t)| t),
+        _ => None,
+    }
+}
+
+fn unknown(abi: &Abi) -> Error {
+    Error::UnknownCircuit(abi.parameter_names().into_iter().cloned().collect())
+}
+
+fn flatten(value: &InputValue, typ: &AbiType, out: &mut Vec<FieldElement>) -> Option<()> {
+    match (value, typ) {
+        (InputValue::Field(f), _) => out.push(noir_to_native(*f)),
+        (InputValue::Vec(values), AbiType::Array { typ, .. }) => {
             for v in values {
-                flatten(v, out)?;
+                flatten(v, typ, out)?;
             }
         }
-        InputValue::String(_) | InputValue::Struct(_) => return None,
+        (InputValue::Struct(values), AbiType::Struct { fields, .. }) => {
+            for (name, typ) in fields {
+                flatten(values.get(name)?, typ, out)?;
+            }
+        }
+        _ => return None,
     }
     Some(())
 }
@@ -115,7 +165,7 @@ fn limbs(n: &BigUint, bits: usize) -> Result<Vec<u128>> {
     let base = BigUint::from(LIMB_BASE);
     let mut rest = n.clone();
     let mut out = Vec::new();
-    for _ in 1..bits.div_ceil(LIMB_BITS) {
+    for _ in 1..bits.div_ceil(LIMB_BIT_LEN) {
         let (quotient, limb) = rest.div_rem(&base);
         out.push(u128::try_from(limb).map_err(too_wide)?);
         rest = quotient;
@@ -134,6 +184,23 @@ fn expect_len(field: &'static str, bytes: &[u8], expected: usize) -> Result<()> 
             actual: bytes.len(),
         })
     }
+}
+
+fn membership(m: &Membership) -> InputValue {
+    record([
+        ("low", field(m.low.into())),
+        ("high", field(m.high.into())),
+        ("country", field(m.country.into())),
+        ("card_type", field(m.card_type.into())),
+        ("brand", field(m.brand.into())),
+        ("commercial", field(m.commercial.into())),
+        ("slot", field(m.slot.into())),
+        ("siblings", InputValue::Vec(m.siblings.iter().copied().map(native).collect())),
+    ])
+}
+
+fn record<const N: usize>(fields: [(&str, InputValue); N]) -> InputValue {
+    InputValue::Struct(fields.into_iter().map(|(name, value)| (name.to_owned(), value)).collect())
 }
 
 fn field(v: u128) -> InputValue {

@@ -24,9 +24,9 @@ test-e2e: ## Compiles the circuits, then proves and verifies the synthetic taps 
 	cd $(EMV_DIR) && cargo test --release
 
 .PHONY: examples
-examples: ## Compiles the circuits, then runs the visa_fdda examples: presence, per_verifier, per_event
+examples: ## Compiles the circuits, then runs the examples: presence, per_verifier, per_event, bin_attributes
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
-	cd $(EMV_DIR) && for e in presence per_verifier per_event; do cargo run --release --example $$e || exit 1; done
+	cd $(EMV_DIR) && for e in presence per_verifier per_event bin_attributes; do cargo run --release --example $$e || exit 1; done
 
 .PHONY: circuit-stats
 circuit-stats: ## Compiles the circuits, then prints each one's R1CS constraint and witness counts under ProveKit

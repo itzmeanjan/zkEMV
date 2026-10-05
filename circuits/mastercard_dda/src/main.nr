@@ -2,78 +2,37 @@
 
 mod tests;
 
-use emv::{assert_issuer_id_matches_pan, assert_not_expired, FMT_SDAD_DDA, nullifier, RsaKey, verify_icc_cert, verify_issuer_cert, verify_sdad};
+use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, FMT_SDAD_DDA, ISSUER_CERT_KEY_SPACE_BYTE_LEN, Revealed, TrustAnchors};
 
-global CA_BITS: u32 = 1984;
-/// 120-bit limbs of the CA modulus.
-global CA_N: u32 = 17;
-global ISSUER_BITS: u32 = 1920;
-global ICC_BITS: u32 = 1152;
+global ISSUER_PUBKEY_BIT_LEN: u32 = 1920;
+global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
+global ISSUER_PUBKEY_REMAINDER_BYTE_LEN: u32 = ISSUER_PUBKEY_BYTE_LEN - ISSUER_CERT_KEY_SPACE_BYTE_LEN;
 
-/// Issuer key bytes that do not fit in the CA-signed certificate: 240 - (248 - 36).
-global ISSUER_REMAINDER_LEN: u32 = 28;
-/// Headroom over the 131 B observed.
-global MAX_STATIC_DATA_LEN: u32 = 256;
+global ICC_PUBKEY_BIT_LEN: u32 = 1152;
+global ICC_PUBKEY_BYTE_LEN: u32 = ICC_PUBKEY_BIT_LEN / BITS_PER_BYTE;
 
-pub struct Inputs {
-    pub ca_modulus: [Field; CA_N],
-    pub nonce: [u8; 4],
-    pub today: u32,
-    pub scope: Field,
-    pub issuer_cert: [u8; CA_BITS / 8],
-    pub issuer_remainder: [u8; ISSUER_REMAINDER_LEN],
-    pub issuer_exponent: u8,
-    pub icc_cert: [u8; ISSUER_BITS / 8],
-    pub icc_exponent: u8,
-    pub static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>,
-    pub sdad: [u8; ICC_BITS / 8],
+global STATIC_DATA_MAX_BYTE_LEN: u32 = 256;
+
+/// The card's data from the tap.
+pub struct Card {
+    pub issuer_pubkey_cert: [u8; CA_PUBKEY_BYTE_LEN],
+    pub issuer_pubkey_remainder: [u8; ISSUER_PUBKEY_REMAINDER_BYTE_LEN],
+    pub issuer_pubkey_exponent: u8,
+    pub icc_pubkey_cert: [u8; ISSUER_PUBKEY_BYTE_LEN],
+    pub icc_pubkey_exponent: u8,
+    pub static_data_to_authenticate: BoundedVec<u8, STATIC_DATA_MAX_BYTE_LEN>,
+    pub signed_dynamic_app_data: [u8; ICC_PUBKEY_BYTE_LEN],
 }
 
-fn main(
-    // The verifier must check this is in its CA table.
-    ca_modulus: pub [Field; CA_N],
-    // Unpredictable Number (9F37): the verifier's challenge, and the whole DDOL.
-    nonce: pub [u8; 4],
-    // YYMM
-    today: pub u32,
-    // Chosen by the verifier, or at random by the prover when the verifier needs no nullifier.
-    scope: pub Field,
-    issuer_cert: [u8; CA_BITS / 8], // 90
-    issuer_remainder: [u8; ISSUER_REMAINDER_LEN], // 92
-    issuer_exponent: u8, // 9F32
-    icc_cert: [u8; ISSUER_BITS / 8], // 9F46
-    icc_exponent: u8, // 9F47
-    static_data: BoundedVec<u8, MAX_STATIC_DATA_LEN>, // AFL-flagged records || AIP
-    sdad: [u8; ICC_BITS / 8], // 9F4B
-) -> pub Field {
-    verify(
-        Inputs { ca_modulus, nonce, today, scope, issuer_cert, issuer_remainder, issuer_exponent, icc_cert, icc_exponent, static_data, sdad },
-    )
-}
-
-fn verify(x: Inputs) -> Field {
-    let ca_key = RsaKey::<CA_BITS / 8>::from_limbs(x.ca_modulus);
-
-    let issuer = verify_issuer_cert::<_, ISSUER_BITS / 8, _>(
-        ca_key.recover(x.issuer_cert),
-        x.issuer_remainder,
-        x.issuer_exponent,
-    );
-    let issuer_key: RsaKey<ISSUER_BITS / 8> = RsaKey::from_be_bytes(issuer.modulus);
-
-    let icc = verify_icc_cert::<_, ICC_BITS / 8, _, _>(
-        issuer_key.recover(x.icc_cert),
-        [],
-        x.icc_exponent,
-        x.static_data,
-    );
-    let icc_key: RsaKey<ICC_BITS / 8> = RsaKey::from_be_bytes(icc.modulus);
-
-    assert_issuer_id_matches_pan(issuer.issuer_id, icc.pan);
-    assert_not_expired(issuer.expiry, x.today);
-    assert_not_expired(icc.expiry, x.today);
-
-    verify_sdad(icc_key.recover(x.sdad), FMT_SDAD_DDA, x.nonce);
-
-    nullifier(icc.modulus, x.scope)
+fn main(trust_anchors: pub TrustAnchors, challenge: pub Challenge, card: Card, bin_membership: BinMembership) -> pub Revealed {
+    CaKey::from_limbs(trust_anchors.ca_modulus)
+        .recover_issuer_cert(card.issuer_pubkey_cert)
+        .verify::<ISSUER_PUBKEY_BYTE_LEN, _>(card.issuer_pubkey_remainder, card.issuer_pubkey_exponent, challenge.today_yymm)
+        .key()
+        .recover_icc_cert(card.icc_pubkey_cert)
+        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, card.static_data_to_authenticate, challenge.today_yymm)
+        .key()
+        .recover_sdad(card.signed_dynamic_app_data)
+        .verify(FMT_SDAD_DDA, challenge.nonce)
+        .reveal(trust_anchors.bin_root, challenge, bin_membership)
 }
