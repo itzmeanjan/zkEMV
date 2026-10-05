@@ -34,7 +34,7 @@ fn main() -> emv::Result<()> {
             "❗ refused: this card already voted"
         };
 
-        println!("{name}: nullifier 0x{} {outcome}", const_hex::encode(&nullifier.to_bytes()));
+        println!("{name}: nullifier 0x{} {outcome}", const_hex::encode(nullifier.to_bytes()));
     }
 
     Ok(())

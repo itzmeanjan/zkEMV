@@ -13,7 +13,7 @@ use emv::{CardType, Challenge, Disclosure, Scheme, Scope, Verified};
 fn main() -> emv::Result<()> {
     // The verifier pins the root of a table it trusts; the phone holds the table itself.
     let root = bins()?.root();
-    println!("BIN table root 0x{}", const_hex::encode(&root.to_bytes()));
+    println!("BIN table root 0x{}", const_hex::encode(root.to_bytes()));
 
     for scheme in [Scheme::VisaFdda, Scheme::MastercardDda] {
         let (pk, vk, table) = setup(scheme)?;

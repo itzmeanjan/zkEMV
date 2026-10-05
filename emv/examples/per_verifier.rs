@@ -27,7 +27,7 @@ fn main() -> emv::Result<()> {
             "❗ refused: this card already claimed it"
         };
 
-        println!("attempt {attempt}: nullifier 0x{} {outcome}", const_hex::encode(&nullifier.to_bytes()));
+        println!("attempt {attempt}: nullifier 0x{} {outcome}", const_hex::encode(nullifier.to_bytes()));
     }
 
     // The same card at another verifier.
@@ -37,7 +37,7 @@ fn main() -> emv::Result<()> {
     let nullifier = check(&vk, &table, challenge, &response)?.nullifier.expect("a verifier scope gives a nullifier");
 
     assert!(!claimed.contains(&nullifier));
-    println!("{other}: nullifier 0x{}, unrelated to {ORIGIN}'s", const_hex::encode(&nullifier.to_bytes()));
+    println!("{other}: nullifier 0x{}, unrelated to {ORIGIN}'s", const_hex::encode(nullifier.to_bytes()));
 
     Ok(())
 }
