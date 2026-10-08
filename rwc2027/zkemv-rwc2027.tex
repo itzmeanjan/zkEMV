@@ -70,30 +70,10 @@ Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{f
 To the best of our knowledge, no earlier work presents zero-knowledge proving of EMV ODA with practical use cases it leads to.
 
 \section{The protocol}
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}[font=\footnotesize, node distance=8mm,
-  box/.style={draw, rounded corners=2pt, inner sep=2.5pt, align=center, minimum height=7mm},
-  arr/.style={-{Latex[length=1.6mm]}}]
-  \node[box, fill=yellow!20] (ca) {Scheme CA key\\\scriptsize public, pinned};
-  \node[box, fill=blue!8, right=of ca] (iss) {Issuer cert \texttt{90}\\\scriptsize issuer ID, expiry};
-  \node[box, fill=blue!8, right=of iss] (icc) {Card cert \texttt{9F46}\\\scriptsize PAN, expiry, card key};
-  \node[box, fill=blue!8, right=of icc] (sdad) {Signature \texttt{9F4B}};
-  \node[box, fill=yellow!20, right=of sdad] (nonce) {Nonce \texttt{9F37}\\\scriptsize verifier's, fresh};
-  \draw[arr] (ca) -- node[above=1pt]{\scriptsize signs} (iss);
-  \draw[arr] (iss) -- node[above=1pt]{\scriptsize signs} (icc);
-  \draw[arr] (icc) -- node[above=1pt]{\scriptsize signs} (sdad);
-  \draw[arr] (nonce) -- node[above=1pt]{\scriptsize covers} (sdad);
-  \node[box, fill=green!12, below=4mm of icc] (out) {Verifier learns: scheme, $\mathrm{Poseidon2}(\textsf{DS}, \mathit{scope}, \text{card key})$, requested BIN attributes};
-  \draw[arr, dashed] (icc.south) -- (out.north);
-\end{tikzpicture}
-\caption{The chain proved in zero knowledge.
-Yellow: public inputs.
-Blue: private, read from the card.
-Green: output.
-Each ``signs'' arrow is RSA  $e=3$ and ISO/IEC 9796-2 message recovery over SHA-1.}
-\label{fig:chain}
-\end{figure}
+
+There are two participants in the protocol: a user (prover) and a service provider (verifier).
+User has a near field communication (NFC) capable device and an EMV card in their physical possesion.
+User proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time (\texttt{YY-MM}).
 
 \paragraph{Flow.}
 (1)~The verifier issues a challenge.
@@ -108,6 +88,30 @@ Cards that support only combined authentication (CDA) are not handled yet.
 (5)~The verifier checks that the proof's public inputs equal its challenge and a CA key it pins, then verifies the proof.
 A type-state API keeps the nonce out of the caller's hands and makes each challenge single-use.
 This matters because the ProveKit verifier checks a proof only against the public inputs the proof itself carries.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\footnotesize, node distance=8mm,
+  box/.style={draw, rounded corners=2pt, inner sep=2.5pt, align=center, minimum height=7mm},
+  arr/.style={-{Latex[length=1.6mm]}}]
+  \node[box, fill=yellow!20] (ca) {Scheme CA key\\\scriptsize public, pinned};
+  \node[box, fill=red!8, right=of ca] (iss) {Issuer cert.\\\scriptsize issuer ID, expiry};
+  \node[box, fill=red!8, right=of iss] (icc) {Card cert.\\\scriptsize PAN, expiry, card key};
+  \node[box, fill=red!8, right=of icc] (sdad) {Signature};
+  \node[box, fill=yellow!20, right=of sdad] (nonce) {Nonce\\\scriptsize verifier's, fresh};
+  \draw[arr] (ca) -- node[above=1pt]{\scriptsize signs} (iss);
+  \draw[arr] (iss) -- node[above=1pt]{\scriptsize signs} (icc);
+  \draw[arr] (icc) -- node[above=1pt]{\scriptsize signs} (sdad);
+  \draw[arr] (nonce) -- node[above=1pt]{\scriptsize covers} (sdad);
+  \node[box, fill=green!12, below=4mm of icc] (out) {Verifier learns: scheme, $\mathrm{Poseidon2}(\textsf{DS}, \mathit{scope}, \text{card key})$, requested BIN attributes};
+  \draw[arr, dashed] (icc.south) -- (out.north);
+\end{tikzpicture}
+\caption{The chain proved in zero knowledge.
+Yellow: public inputs.
+Red: private, read from the card.
+Green: output.}
+\label{fig:chain}
+\end{figure}
 
 \paragraph{Statement.}
 The public inputs are the scheme CA modulus, the nonce, the month, the scope, and the attribute request  its BIN-table root (below).
