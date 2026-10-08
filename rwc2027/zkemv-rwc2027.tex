@@ -23,18 +23,23 @@
 \maketitle
 
 \begin{abstract}
-EMVCo reports over 15.6 billion EMV chip cards are in use.
-Each chip-card authenticates itself to readers, often the in-store payment terminals, through an \emph{offline data authentication} (ODA) step.
-ODA requires the card chip to sign a fresh challenge from the reader, with a key that an RSA certificate chain ties to the certification authority (CA).
-We show that ODA already gives us a privacy-preserving credential using zero-knowledge cryptography, without any change to card chip, issuers or payment networks.
-In \emph{zkEMV}, the user taps their contactless card on their own NFC-capable device, which participates in ODA.
-The captured transcript of communication over NFC is used for locally proving that a genuine EMV card signed a challenge nonce presented by the verifier, and that its issuer and card certificates are not expired.
-The verifier receives a zero-knowledge proof (ZKP) which it can instantly verify against root of trust CA public key without ever needing to see the card number, expiry dates or none of its certificates.
-The ZKP carries a verifier-scoped 32-byte nullifier hash that is linked to the card's ICC public key, resisting Sybil attack vector.
-On verifier's request the client can selectively disclose some attributes derivable from the card's bank identification number (BIN), i.e., first 6 to 8 digits of card number, such as, card issuing country, bank or nature of card funding.
-Proving runs entirely on user-owned device: when a Samsung Galaxy S25 Ultra is running on battery power, it takes 700ms for a Visa card and 800ms for a Mastercard, to prove ODA in zero-knowledge using Provekit, which implements a Spartan-based sumcheck protocol with WHIR polynomial commitment scheme.
-Verification of zkEMV proof takes under 100ms and proof size ranges in 620-640KiB.
-The talk presents the zkEMV protocol, with optimizations for sub-second latency client-side proving of ODA, followed by demonstrating practical use cases it opens doors to, which preserves user privacy and reduces merchant liability when handling personally identifiable informations (PIIs).
+  % scale
+  EMVCo reports over 15.6 billion EMV chip cards are in use.
+  Each chip-card authenticates itself to readers, often the in-store payment terminals, through an \emph{offline data authentication} (ODA) step.
+  ODA requires the card chip to sign a fresh challenge from the reader, with a key that an RSA certificate chain ties to the certification authority (CA).
+  % zkEMV
+  We show that ODA already gives us a privacy-preserving credential when paired with zero-knowledge cryptography, without any change to card chip, issuers or payment networks.
+  In \emph{zkEMV}, the user taps their contactless card on their own NFC-capable device, which participates in ODA.
+  The captured transcript of communication over NFC is used for locally proving that a genuine EMV card signed a challenge nonce presented by the verifier, and that its issuer and card certificates are not expired.
+  % verifier pov
+  The verifier receives a zero-knowledge proof (ZKP) which it can instantly verify against root of trust CA public key without ever needing to see the card number, expiry dates or none of its certificates.
+  The ZKP carries a verifier-scoped 32-byte nullifier hash that is linked to the card's ICC public key, resisting Sybil attack vector.
+  On verifier's request the client can selectively disclose some attributes derivable from the card's bank identification number (BIN), i.e., first 6 to 8 digits of card number, such as, card issuing country, bank or nature of card funding.
+  % perf
+  Proving runs entirely on user-owned device: when a Samsung Galaxy S25 Ultra is running on battery power, it takes 700ms for a Visa card and 800ms for a Mastercard, to prove ODA in zero-knowledge using Provekit, which implements a Spartan-based sumcheck protocol with WHIR polynomial commitment scheme.
+  Verification of zkEMV proof takes under 100ms and proof size ranges in 620-640KiB.
+  % summarise
+  The talk presents the zkEMV protocol, with optimizations for sub-second latency client-side proving of ODA, followed by demonstrating practical use cases it opens doors to, which preserves user privacy and reduces merchant liability when handling personally identifiable informations (PIIs).
 \end{abstract}
 
 \section{Motivation}
