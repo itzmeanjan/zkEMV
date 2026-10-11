@@ -30,11 +30,11 @@
   % zkEMV
   We show that ODA already gives us a privacy-preserving credential when paired with zero-knowledge cryptography, without any change to card chip, issuers or payment networks.
   In \emph{zkEMV}, the user taps their contactless card on their own NFC-capable device, which participates in ODA.
-  The captured transcript of communication over NFC is used for locally proving that a genuine EMV card signed a challenge nonce presented by the verifier, and that its issuer and card certificates are not expired.
+  The captured transcript of communication over NFC is used for locally proving that a genuine EMV card signed a challenge "nonce" presented by the verifier, and that its issuer and card certificates are not expired.
   % verifier pov
   The verifier receives a zero-knowledge proof (ZKP) which it can instantly verify against root of trust CA public key without ever needing to see the card number, expiry dates or none of its certificates.
   The ZKP carries a verifier-scoped 32-byte nullifier hash that is linked to the card's ICC public key, resisting Sybil attack vector.
-  On verifier's request the client can selectively disclose some attributes derivable from the card's bank identification number (BIN), i.e., first 6 to 8 digits of card number, such as, card issuing country, bank or nature of card funding.
+  On verifier's request the client can selectively disclose some attributes derivable from the card's bank identification number (BIN), i.e., first 6 to 8 digits of card number, such as, card issuing country, bank or nature of funding.
   % perf
   Proving runs entirely on user-owned device: when a Samsung Galaxy S25 Ultra is running on battery power, it takes 700ms for a Visa card and 800ms for a Mastercard, to prove ODA in zero-knowledge using Provekit, which implements a Spartan-based sumcheck protocol with WHIR polynomial commitment scheme.
   Verification of zkEMV proof takes under 100ms and proof size ranges in 620-640KiB.
@@ -45,28 +45,29 @@
 \section{Motivation}
 
 % problem
-Any online service providing a free-tier service, such as AI inference tokens, GPU compute credits, privacy-focused virtual private network (VPN) or email relayer, faces abuse from spammers, often degrading quality of service (QoS) for real customers.
+Any online business providing a free-tier service, such as AI inference tokens, GPU compute credits, privacy-focused virtual private network (VPN) or email relayer, faces abuse from spammers, often degrading the quality of service (QoS) for real customers.
 Stripe reports that 7.4\% of sign-ups at AI company websites are implicated in suspected multi-account abuse~\cite{stripe-abuse}.
-The classic Sybil attack problem.
+This is the classic Sybil attack~\cite{douceur-sybil}: without a trusted authority certifying identities, one user can always pose as many.
+
 % solution
 Service providers resort to collecting user identifiables to stop spammers from easily creating new identities.
 The usual defence mechanism includes verify customer phone number, upload Govt. issued identity card, or add a payment card.
 These help service providers deduplicate user accounts and limit resource usage to only unique users.
 For sake of convenience, major card networks such Visa and Mastercard offer tap-to-verify products~\cite{visa-tap,mc-tap-to-verify}.
 % new problem
-But it opens door to a much bigger problem: service providers have the responsibility of delicately handling any customer data which falls under the umbrella of personally identifiable informations (PIIs), as they become a lucrative target for hackers.
+But it opens door to a much bigger problem: service providers have the responsibility of carefully handling any customer data which falls under the umbrella of PII, as they become a lucrative target for hackers.
 Then there are privacy-concious customers who are aware of these potential data breaches and they prefer not to put their card number, expiry dates or CVV on a random website, which leaves them unable to try out a product or service.
 
 Surprisingly each chip-based card already holds necessary cryptographic foundation to build a much more privacy-respecting authentication mechanism.
 % no ZK
-During the offline data authentication (ODA)~\cite{emv-book2}, a contactless card sends the reader a certificate chain with a fresh challenge signed with the private key counterpart, it holds inside chip.
-These credentials are already issued and in circulation, as close as 15.6 billion EMV chip cards are in use~\cite{emvco-stats}, contrary to Privacy Pass~\cite{privacypass} and Private Access Tokens~\cite{apple-pat} which rely on a platform attester.
+During ODA, a contactless card sends the reader a certificate chain with a fresh challenge signed with the private key counterpart, it holds inside the chip~\cite{emv-book2}.
+These credentials are already issued and in circulation, almost 15.6 billion EMV chip cards are in use~\cite{emvco-stats}, contrary to Privacy Pass~\cite{privacypass} and Private Access Tokens~\cite{apple-pat} which rely on a platform attester.
 % problem
 The EMV certificates however embed the card number, which is formally known as primary account number (PAN), so verifying the certificate chain server-side means handing over user identifiables.
 % with ZK
-Zero-knowledge cryptography comes to a rescue: produce a zero-knowledge proof (ZKP) on user-device over the certificate chain without exposing PAN.
+Zero-knowledge cryptography comes to a rescue: produce a zero-knowledge proof (ZKP) on user-device over the certificate chain without exposing the PAN.
 % differentiation
-Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{frigo-shelat}, JWT and mDL~\cite{crescent}, OpenID Connect~\cite{zklogin} and legacy signatures~\cite{legacy-sigs}, need enrolment with a government or an identity provider.
+Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{frigo-shelat}, JWT and mDL~\cite{crescent}, OpenID Connect~\cite{zklogin} and legacy signatures~\cite{legacy-sigs}, need enrolment with a government or a trusted identity provider.
 To the best of our knowledge, no earlier work presents zero-knowledge proving of EMV ODA with practical use cases it leads to.
 
 \section{The protocol}
