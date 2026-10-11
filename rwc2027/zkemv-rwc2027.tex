@@ -116,31 +116,32 @@ Recovered message holds the next public key in certificate chain to continue wit
 Additionally it enforces that the issuer identifier matches the card PAN prefix and both certificates are not expired compared to the verifier-chosen \texttt{YY-MM}.
 % nullifier
 To prevent a malicious user from proving forgable statements, the circuit computes predicates only from bytes which are covered by the signatures in the certificate chain.
-The circuit-output nullifier is deterministic for an EMV card with verifier-scoped challenge.
+The circuit-output nullifier is deterministic for an EMV card with a verifier-scoped challenge.
 The scope is what dictates if the nullifier is linkable across verifiers: to prevent a malicious verifier from learning nullifier in another verifier's scope, the client only accepts challenge which originates from an authenticated scope.
 % attributes
 Optionally the circuit can reveal certain requested attributes without exposing the BIN, i.e., the card issuer country, whether it is credit, debit or prepaid card, brand name and whether or not for commercial use.
 A binary Merkle tree, built with Poseidon2 hash function, over ranges of first 12 digits of PAN, is used for proving inclusion against the Merkle root hash, which the challenger commits to.
 
 \section{Use cases}
-A card tap fits where a fake account costs the service money, but less than another physical card, and where no payment takes place.
+
+zkEMV-based authentication helps anywhere fake accounts drain resources from real users and no actual payment needs to happen.
+User does not need to enter their card details trusting a random website and the website database operator does not need to worry about hackers getting their hands on the card-data mine.
+
 \begin{itemize}
-\item \textbf{Free tiers and trials} (per verifier).
-AI and compute credits, privacy-focused email and code hosting can grant one free tier per card, storing nothing but the nullifier.
-\item \textbf{Bans that stick} (per verifier).
-A ban attaches to the nullifier, so coming back takes a new physical card, not a new email address.
-\item \textbf{One vote per card} (per event).
-Polls, petitions and funding rounds count each card once, and rounds stay unlinkable.
-When the verifier is public, as for testnet faucets or quadratic funding~\cite{quadratic-funding}, zero knowledge is required, not optional.
-\item \textbf{Confirming a risky action} (per verifier).
-Before a payout-address change or an account deletion, the service checks that the tap returns the enrolled card's nullifier.
-A stolen card still passes, so the tap complements a password rather than replacing it.
-\item \textbf{Bot friction} (unlinkable).
-The service learns only that a genuine card is present.
-\item \textbf{Coarse gates} (BIN attributes).
-A verifier can refuse prepaid cards or restrict access by issuer country.
+\item \textbf{Free tiers and trials}
+Daily quota of LLM token allowance for each account proving possesion of a genuine EMV card without ever risking loss of customer data.
+\item \textbf{Sticky banlists}
+Communities on Discord which seek only well-mannered humans, may maintain a banlist with scoped nullifiers, without ever seeing user's card details or email address.
+\item \textbf{One vote per card}
+Polls and petitions allowing only one participation from one EMV card-owner, with nullifiers staying unlinkable across events preserve user privacy from curious platform operator.
+\item \textbf{Two factor authentication}
+Before letting any irreversible account operation to happen, user taps their EMV card on their phone to prove that it derives the enrolled nullifier.
+\item \textbf{Bot friction}
+To evade bots from spamming service, accepting zkEMV proof is a privacy-respecting alternative.
 \end{itemize}
-Anti-abuse aggregators such as Human Passport~\cite{human-passport} could accept a zkEMV proof as one signal among several.
+
+Additionally services might impose constraints such as "it needs to be a credit card issued in a specific country" without them learning the card number.
+Anti-abuse aggregators such as the Human Passport~\cite{human-passport} could potentially accept a zkEMV proof as another signal.
 
 \section{Client-side proving}
 The prover runs on the user's own phone, so card data never leaves the device that read it.
