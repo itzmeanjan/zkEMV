@@ -74,73 +74,53 @@ To the best of our knowledge, no earlier work presents zero-knowledge proving of
 
 There are two participants in the protocol: a user (prover) and a service provider (verifier).
 User has a near field communication (NFC) capable device and an EMV card in their physical possesion.
-User proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time (\texttt{YY-MM}).
+User proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time.
 
 \paragraph{Flow.}
-(1)~The verifier issues a challenge.
-It holds a random 4-byte nonce, the current month, a \emph{scope} and an optional request for card attributes.
-Visa cards also sign an amount and a currency, which the verifier sets to zero.
-(2)~The phone fetches the challenge over TLS and derives the scope itself from the origin it authenticated.
-(3)~The user taps.
-Mastercard cards sign the nonce in reply to INTERNAL AUTHENTICATE (DDA)~\cite{emv-c2}.
-Visa cards sign it in their reply to GET PROCESSING OPTIONS (fDDA)~\cite{emv-c3}.
-Cards that support only combined authentication (CDA) are not handled yet.
-(4)~The phone proves the statement below, then sends the proof.
-(5)~The verifier checks that the proof's public inputs equal its challenge and a CA key it pins, then verifies the proof.
-A type-state API keeps the nonce out of the caller's hands and makes each challenge single-use.
-This matters because the ProveKit verifier checks a proof only against the public inputs the proof itself carries.
+The verifier issues a challenge: a random 4-byte nonce, the current time at month-level granularity (in format \texttt{YY-MM}), a \emph{scope} and optionally set bits for revealing card attributes, derivable from BIN.
+The user device fetches the challenge and ensures the requested scope is same as the origin authenticates to over TLS.
+The user taps the EMV card on their device, which forwards the payload, i.e., nonce and time, for signing by the card-held ICC private key.
+The card chip returns back the signature with both issuer and ICC certificate, which chains upto the root of trust anchor --- CA public key.
+The captured transcript of NFC communication is fed into the circuit for proving on user device.
+The proof outputs a 32-byte nullifier hash, i.e., Poseidon2~\cite{poseidon2} hash of card's certified ICC public key and verifier scope.
+On receiving the ZKP, the verifier checks the proof's public inputs equal to its challenge and the CA key is what it trusts, followed by verifying the ZKP itself.
 
 \begin{figure}[t]
 \centering
 \begin{tikzpicture}[font=\footnotesize, node distance=8mm,
   box/.style={draw, rounded corners=2pt, inner sep=2.5pt, align=center, minimum height=7mm},
   arr/.style={-{Latex[length=1.6mm]}}]
-  \node[box, fill=yellow!20] (ca) {Scheme CA key\\\scriptsize public, pinned};
-  \node[box, fill=red!8, right=of ca] (iss) {Issuer cert.\\\scriptsize issuer ID, expiry};
-  \node[box, fill=red!8, right=of iss] (icc) {Card cert.\\\scriptsize PAN, expiry, card key};
+  \node[box, fill=yellow!20] (ca) {CA pubkey};
+  \node[box, fill=red!8, right=of ca] (iss) {Issuer cert.\\\scriptsize (issuer ID, expiry)};
+  \node[box, fill=red!8, right=of iss] (icc) {ICC cert.\\\scriptsize (PAN, expiry, ICC pubkey)};
   \node[box, fill=red!8, right=of icc] (sdad) {Signature};
-  \node[box, fill=yellow!20, right=of sdad] (nonce) {Nonce\\\scriptsize verifier's, fresh};
+  \node[box, fill=yellow!20, right=of sdad] (nonce) {Verifier's challenge};
   \draw[arr] (ca) -- node[above=1pt]{\scriptsize signs} (iss);
   \draw[arr] (iss) -- node[above=1pt]{\scriptsize signs} (icc);
   \draw[arr] (icc) -- node[above=1pt]{\scriptsize signs} (sdad);
   \draw[arr] (nonce) -- node[above=1pt]{\scriptsize covers} (sdad);
-  \node[box, fill=green!12, below=4mm of icc] (out) {Verifier learns: scheme, $\mathrm{Poseidon2}(\textsf{DS}, \mathit{scope}, \text{card key})$, requested BIN attributes};
+  \node[box, fill=green!12, below=4mm of icc] (out) {Verifier learns: $\mathrm{Poseidon2}(\mathit{scope}, \text{ICC pubkey})$, requested BIN attributes};
   \draw[arr, dashed] (icc.south) -- (out.north);
 \end{tikzpicture}
-\caption{The chain proved in zero knowledge.
-Yellow: public inputs.
-Red: private, read from the card.
-Green: output.}
+\caption{The ODA certificate chain proved in zero knowledge.}
 \label{fig:chain}
 \end{figure}
 
 \paragraph{Statement.}
-The public inputs are the scheme CA modulus, the nonce, the month, the scope, and the attribute request  its BIN-table root (below).
-The witness is what the card sent.
-For each of the three signatures (Fig.~\ref{fig:chain}), the circuit:
-\begin{itemize}
-\item recovers $m = s^3 \bmod n$ and enforces $m<n$, so the bytes it reads are canonical;
-\item checks every fixed field of the 9796-2 encoding~\cite{iso9796-2}: header, trailer, format, algorithm indicators, key length and exponent;
-\item recomputes the embedded SHA-1 over the recovered body plus the key remainder and signed static data, or plus the terminal data that contains the nonce;
-\item rebuilds the next public key from the recovered bytes, checking its padding.
-\end{itemize}
-Across the chain, the issuer identifier must match the PAN prefix and both certificates must be unexpired.
-Every predicate is computed from certificate-recovered bytes, never from the unsigned tags the card also sends, a recurring lesson of the EMV break-and-fix literature~\cite{basin-emv}.
-
-\textbf{Output.} The circuit outputs a nullifier $\mathrm{Poseidon2}(\textsf{DS}, \mathit{scope}, \text{card key})$~\cite{poseidon2}, computed from the card's certified public key.
-It is never computed from the PAN, which can be brute-forced within a BIN.
-The scope makes the nullifier one of three kinds:
-\begin{itemize}
-\item \emph{Per verifier}, for example for a free trial.
-The phone derives the scope from the authenticated origin, so a site that relays another verifier's challenge obtains only its own nullifier.
-\item \emph{Per event}, for example for a poll.
-Rounds are unlinkable.
-\item \emph{Unlinkable}.
-The phone draws a random scope, and the verifier learns only that a genuine card is present.
-\end{itemize}
-On request, the circuit also reveals coarse attributes: issuer country, credit, debit or prepaid, brand, and consumer or commercial.
-It does this  a range proof of the first 12 PAN digits, taken from the issuer-signed card certificate, against a Poseidon2 Merkle root of a BIN table the verifier commits to.
-For example, a verifier can turn away cheap prepaid cards without learning the bank.
+The public inputs to the circuit are CA public key, nonce, time, scope and optional bits set for revealing attributes (based on BIN) with a BIN-table Merkle root.
+% cert chain
+As depicted in Figure~\ref{fig:chain}, three RSA signatures are verified along the EMV certificate chain, such that the signed messages are recovered with $\texttt{msg} = \texttt{sig} ^ 3 \bmod n$, where $n$ is the RSA modulus.
+Recovered messages are parsed following ISO 9796-2~\cite{iso9796-2} encoding with sufficient assertions.
+Then it recomputes the SHA-1 hash~\cite{fips180-4} over the recovered message to enforce integrity.
+Recovered message holds the next public key in certificate chain to continue with the authenticity check.
+Additionally it enforces that the issuer identifier matches the card PAN prefix and both certificates are not expired compared to the verifier-chosen \texttt{YY-MM}.
+% nullifier
+To prevent a malicious user from proving forgable statements, the circuit computes predicates only from bytes which are covered by the signatures in the certificate chain.
+The circuit-output nullifier is deterministic for an EMV card with verifier-scoped challenge.
+The scope is what dictates if the nullifier is linkable across verifiers: to prevent a malicious verifier from learning nullifier in another verifier's scope, the client only accepts challenge which originates from an authenticated scope.
+% attributes
+Optionally the circuit can reveal certain requested attributes without exposing the BIN, i.e., the card issuer country, whether it is credit, debit or prepaid card, brand name and whether or not for commercial use.
+A binary Merkle tree, built with Poseidon2 hash function, over ranges of first 12 digits of PAN, is used for proving inclusion against the Merkle root hash, which the challenger commits to.
 
 \section{Use cases}
 A card tap fits where a fake account costs the service money, but less than another physical card, and where no payment takes place.
