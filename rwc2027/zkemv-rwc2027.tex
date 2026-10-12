@@ -73,7 +73,7 @@ To the best of our knowledge, no earlier work presents zero-knowledge proving of
 \section{The protocol}
 
 There are two participants in the protocol: a user (prover) and a service provider (verifier).
-User has a near field communication (NFC) capable device and an EMV card in their physical possesion.
+User has a near field communication (NFC) capable device and an EMV card in their physical possession.
 User proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time.
 
 \paragraph{Flow.}
@@ -129,7 +129,7 @@ User does not need to enter their card details trusting a random website and the
 
 \begin{itemize}
 \item \textbf{Free tiers and trials}
-Daily quota of LLM token allowance for each account proving possesion of a genuine EMV card without ever risking loss of customer data.
+Daily quota of LLM token allowance for each account proving possession of a genuine EMV card without ever risking loss of customer data.
 \item \textbf{Sticky banlists}
 Communities on Discord which seek only well-mannered humans, may maintain a banlist with scoped nullifiers, without ever seeing user's card details or email address.
 \item \textbf{One vote per card}
@@ -166,35 +166,14 @@ Proof size & 616.6\,KiB & 636.2\,KiB \\
 \end{table}
 
 \section{Limitations}
-A proof is about a card, not a person.
-A tap sets a cost floor of one physical chip card per account per verifier.
-Virtual card numbers and phone wallets cannot be tapped, and the BIN attributes let a verifier refuse cheap prepaid cards.
-A proof also shows only that a genuine card answered somewhere.
-NFC relay is commodity crime~\cite{eset-ngate,threatfabric-ghosttap}, but the per-verifier nullifier still caps a rented card at one account per verifier.
-In the \emph{unlinkable} scope, a proof that is not bound to the verifier's origin would let a malicious site launder its users' taps through another verifier's presence check.
-Binding an origin hash in every scope stops this.
 
-Privacy holds against the verifier, not against everyone.
-The nullifier is unkeyed: the issuer, the network, and every terminal or skimmer that has read a card can compute it in any scope, including in unlinkable proofs, whose random scope is public.
-zkEMV therefore reduces downstream copies of card data, but hides nothing from the payment rails.
-The anonymity set is also smaller than all cards.
-A proof reveals its circuit and therefore the card's key-width profile, which today is one per scheme.
-Requested BIN attributes narrow it further: in our table~\cite{binlist-data}, 0.25\% of ranges are unique on all four attributes.
-A verifier-chosen BIN table  fine ranges could leak the PAN prefix, so the phone must pin the roots it accepts.
-
-zkEMV inherits offline EMV's security: SHA-1~\cite{sha1-shambles}, 1984-bit RSA, the ISO/IEC 9796-2 forgery literature~\cite{cntw}, and a 4-byte nonce, so an attacker who harvested $k$ signatures succeeds  probability $k\cdot 2^{-32}$ per challenge.
-Revocation is not checked.
-No official public distribution of CA keys exists.
-Ours come from community lists~\cite{eftlab-ca-keys} and are authenticated only because real certificates verify under them.
-ProveKit was audited by Least Authority~\cite{world-provekit}, but our circuits have not been audited.
-
-The phone app sees all card data, so users must trust an open-source app.
-On Visa cards the fDDA read also makes the chip compute a transaction cryptogram, although no payment is made.
-The cryptogram must never leave the phone, because it is a pre-play primitive~\cite{chip-and-skim}.
-The read also advances the card's transaction counter, which the issuer sees.
-iOS restricts reading payment cards~\cite{apple-nfc-payment}, so the system is Android-first.
-Finally, EMV's ECC kernel, C-8~\cite{emv-c8}, adds blinded key agreement and may not leave a signature a phone can prove.
-Our ask to EMVCo and the networks is to keep a transferable, privacy-preserving attestation in next-generation cards.
+A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not necessarily prove "personhood" due to relative ease for one to possess multiple EMV cards.
+Skipping authentication of verifier origin lets a malicious verifier obtain nullifier for another verifier's scope, which effectively lets the malicious party scan user's presence across venues, if nullifier database gets leaked.
+Because Provekit proofs are zero-knowledge~\cite{world-provekit}, privacy of card data holds against verifiers, but not against card issuer network.
+Any merchant which has already seen an EMV card tap, i.e., it has captured the card-specific ICC public key, can deduce its nullifiers, by bruteforcing verifier "scope".
+zkEMV security model inherits EMV's ODA security: SHA-1 has seen chosen-prefix collision attack~\cite{sha1-shambles}, recently RSA-896 challenge number saw successful factoring surpassing previous records~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{cntw}.
+EMVCo specifies the use of elliptic curve Schnorr digital signature algorithm (EC-SDSA) over NIST P-256 curve with SHA-256 hash function~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline signatures~\cite{emvco-quantum}.
+Even though with zkEMV a verifier does not see raw signatures over 4-byte nonce from the card-specific ICC key, if an attacker can harvest $k$ signatures from a card, it has the likelihood of $k \cdot 2^{-32}$ in successfully forging signatures on behalf of the card.
 
 \section{Why RWC}
 The talk brings a new credential class to RWC: one held by billions of people,  a live hardware challenge.
