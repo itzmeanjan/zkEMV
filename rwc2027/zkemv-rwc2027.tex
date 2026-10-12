@@ -144,12 +144,11 @@ Additionally services might impose constraints such as "it needs to be a credit 
 Anti-abuse aggregators such as the Human Passport~\cite{human-passport} could potentially accept a zkEMV proof as another signal.
 
 \section{Client-side proving}
-The prover runs on the user's own phone, so card data never leaves the device that read it.
-The circuits are written in Noir~\cite{noir} and proved  ProveKit~\cite{provekit}, which World uses for World~ID~\cite{world-provekit}.
-ProveKit pairs a Spartan-style sumcheck~\cite{spartan}  the WHIR polynomial commitment~\cite{whir} over BN254,  no trusted setup.
-ProveKit gets zero knowledge from a small masking polynomial and a few blinding polynomials~\cite{world-provekit}.
-Each card profile has its own circuit, which fixes the key widths at compile time.
-The circuit's shape therefore does not depend on the card's data, and neither does the prove time.
+
+A zkEMV proof is generated on user's own device, without the card data ever leaving it.
+The Noir~\cite{noir} circuits are proved using Provekit~\cite{provekit}, developed by World~\cite{world-provekit}.
+Provekit generates "zero-knowledge" proofs using a Spartan-based~\cite{spartan} sumcheck protocol with WHIR~\cite{whir} hash-based polynomial commitment scheme, without any trusted setup.
+Each distinct EMV card profile gets its own circuit due to differences in RSA key bit-length.
 
 \begin{table}[ht]
 \centering
@@ -157,31 +156,14 @@ The circuit's shape therefore does not depend on the card's data, and neither do
 \toprule
 & Visa fDDA & Mastercard DDA \\
 \midrule
-Key widths (CA / issuer / card), bits & 1984 / 1408 / 1024 & 1984 / 1920 / 1152 \\
-R1CS constraints (whole statement) & 64,702 & 93,054 \\
+R1CS constraints & 64,702 & 93,054 \\
 Prove on the phone & 660\,ms & 823\,ms \\
 Verify & 85\,ms & 91\,ms \\
 Proof size & 616.6\,KiB & 636.2\,KiB \\
 \bottomrule
 \end{tabular}
-\caption{Proving and verifying on a Galaxy S25 Ultra (Snapdragon 8 Elite, Android 16), on battery.}
+\caption{On a Samsung Galaxy S25 Ultra (Snapdragon 8 Elite, Android 16, RAM 12GB), on battery.}
 \end{table}
-
-This is slower than the few hundred milliseconds that Frigo and shelat report for mdoc proofs on a phone~\cite{frigo-shelat}.
-Our statement covers three RSA recoveries and about 1\,KiB of SHA-1 input.
-The lessons carry over to other legacy-signature circuits:
-\begin{itemize}
-\item \textbf{SHA-1 dominates, not RSA.} With $e=3$, a 1984-bit 9796-2 recovery costs about 3.5k constraints.
-That is two products, each checked as a polynomial identity over 120-bit limbs,  limb and carry bounds that make it hold over the integers.
-SHA-1 makes up about three-quarters of each circuit, so its layout decides the cost.
-It is built around lookup tables, where a single read both range-checks a chunk and spreads it for bitwise operations,  one witness hint per block.
-A block costs 4.6k constraints, less than half the 10.6k of a general-purpose Noir SHA-1.
-\item \textbf{Count padded witnesses, not constraints.} ProveKit sizes its commitments by the next power of two of the witness count.
-Prove time therefore changes only when the witness count crosses a power of two, and saving constraints below that boundary does not shorten proving.
-\item \textbf{Poseidon2, not Keccak, for hashing in the circuit.} The nullifier and the BIN Merkle tree both need a hash inside the circuit.
-ProveKit does not support Keccak natively, and Keccak written in plain Noir costs 180k constraints per permutation.
-ProveKit does support Poseidon2 natively, at 268 constraints per permutation, so we use Poseidon2.
-\end{itemize}
 
 \section{Limitations}
 A proof is about a card, not a person.
