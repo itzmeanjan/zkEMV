@@ -176,16 +176,10 @@ EMVCo specifies the use of elliptic curve Schnorr digital signature algorithm (E
 Even though with zkEMV a verifier does not see raw signatures over 4-byte nonce from the card-specific ICC key, if an attacker can harvest $k$ signatures from a card, it has the likelihood of $k \cdot 2^{-32}$ in successfully forging signatures on behalf of the card.
 
 \section{Why RWC}
-The talk brings a new credential class to RWC: one held by billions of people,  a live hardware challenge.
-It is timely because the non-private version of card-tap verification is shipping now.
-Attendees will see a working design that is honest about its limits, and techniques for proving legacy RSA, 9796-2 and SHA-1 in a hash-based prover on a phone, which carry over to other legacy credentials.
-The talk also raises open questions for EMVCo, wallet vendors and regulators: next-generation card protocols, scheme rules on non-payment reads, and whether the nullifier counts as personal data.
 
-zkEMV is open source under MIT or Apache-2.0~\cite{zkemv-repo}.
-It comprises Noir circuits for Visa fDDA and Mastercard DDA, a Rust prover and verifier crate that handles challenges and CA keys, and benchmarks that prove and verify on an Android phone.
-The card layouts were taken from captures of real Visa and Mastercard cards, whose chains verify natively under the production CA keys.
-The circuits are tested and benchmarked on synthetic taps  the same layouts.
-The talk will include a live demo of an Android app that reads a card over NFC and proves on the device.
+This talk introduces a new privacy-preserving credential to RWC audience, built off existing infrastructure already in billions of people's hands, using modern zero-knowledge cryptography, entirely provable on user's device.
+The goal of this talk is to first introduce the audience to how zkEMV wraps EMV's decades old ODA protocol in a zero-knowledge proof and start an open discussion on the future design direction of EMV and agentic payments, so that the right guardrails can be built-in the protocol, protecting both user and agent privacy.
+To give audience the taste of practicality, the talk includes a live onstage demo.
 
 \section*{Speaker}
 
