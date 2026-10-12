@@ -22,6 +22,7 @@
   author       = {{Mastercard}},
   title        = {Tapping into the Future of Payments ({Tap to Verify})},
   year         = {2025},
+  month        = {January},
   howpublished = {Mastercard News},
   url          = {https://www.mastercard.com/global/en/news-and-trends/stories/2025/tapping-into-the-future-of-payments.html},
   note         = {Accessed: 2026-10-07}
@@ -34,16 +35,24 @@
   url          = {https://www.emvco.com/emv-technologies/emv-contact-chip/},
   note         = {Accessed: 2026-10-07}
 }
-@inproceedings{douceur-sybil,
-  author    = {Douceur, John R.},
-  title     = {The {Sybil} Attack},
-  booktitle = {Peer-to-Peer Systems: First International Workshop (IPTPS 2002)},
+@inproceedings{DBLP:conf/iptps/Douceur02,
+  author    = {John R. Douceur},
+  editor    = {Peter Druschel and
+               M. Frans Kaashoek and
+               Antony I. T. Rowstron},
+  title     = {The Sybil Attack},
+  booktitle = {Peer-to-Peer Systems, First International Workshop, {IPTPS} 2002,
+               Cambridge, MA, USA, March 7-8, 2002, Revised Papers},
   series    = {Lecture Notes in Computer Science},
   volume    = {2429},
   pages     = {251--260},
-  year      = {2002},
   publisher = {Springer},
-  doi       = {10.1007/3-540-45748-8_24}
+  year      = {2002},
+  url       = {https://doi.org/10.1007/3-540-45748-8\_24},
+  doi       = {10.1007/3-540-45748-8\_24},
+  timestamp = {Tue, 14 May 2019 10:00:53 +0200},
+  biburl    = {https://dblp.org/rec/conf/iptps/Douceur02.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 
 % --- EMV specifications and standards ---
@@ -51,29 +60,34 @@
 @manual{emv-book2,
   author       = {{EMVCo}},
   title        = {{EMV Integrated Circuit Card Specifications for Payment Systems, Book 2: Security and Key Management}},
-  organization = {{EMVCo}}
+  organization = {{EMVCo}},
+  year         = {2022},
+  url          = {https://www.emvco.com/specifications/book-2-security-and-key-management-2},
+  note         = {Accessed: 2026-10-07}
 }
 @manual{emv-c8,
   author       = {{EMVCo}},
   title        = {{EMV Contactless Specifications for Payment Systems, Book C-8: Kernel 8 Specification}},
   organization = {{EMVCo}},
-  note         = {Version 1.2},
-  month        = {June},
-  year         = {2026}
+  year         = {2026},
+  url          = {https://www.emvco.com/specifications/book-c-8-kernel-specification-2},
+  note         = {Accessed: 2026-10-07}
 }
 @manual{emv-book-e,
   author       = {{EMVCo}},
   title        = {{EMV Contactless Specifications for Payment Systems, Book E: Security and Key Management}},
   organization = {{EMVCo}},
-  note         = {Version 1.1},
-  year         = {2025}
+  year         = {2025},
+  url          = {https://www.emvco.com/specifications/emv-contactless-specifications-book-e-security-and-key-management},
+  note         = {Accessed: 2026-10-07}
 }
 @manual{iso9796-2,
   author       = {{ISO/IEC}},
   title        = {{ISO/IEC 9796-2:2010, Information Technology -- Security Techniques -- Digital Signature Schemes Giving Message Recovery -- Part 2: Integer Factorization Based Mechanisms}},
   organization = {International Organization for Standardization},
   year         = {2010},
-  month        = {December}
+  month        = {December},
+  url          = {https://www.iso.org/standard/54788.html}
 }
 @techreport{fips180-4,
   author      = {{National Institute of Standards and Technology}},
@@ -110,59 +124,125 @@
   url          = {https://developer.apple.com/videos/play/wwdc2022/10077/},
   note         = {Accessed: 2026-10-07}
 }
-@misc{frigo-shelat,
-  author       = {Frigo, Matteo and {abhi shelat}},
-  title        = {Anonymous Credentials from {ECDSA}},
-  howpublished = {Cryptology {ePrint} Archive, Paper 2024/2010},
-  year         = {2024},
-  url          = {https://eprint.iacr.org/2024/2010},
-  note         = {Presented at Real World Crypto 2025}
+@article{DBLP:journals/cic/FrigoS26,
+  author    = {Matteo Frigo and
+               Abhi Shelat},
+  title     = {Anonymous Credentials from {ECDSA}},
+  journal   = {{IACR} Commun. Cryptol.},
+  volume    = {3},
+  number    = {1},
+  pages     = {7},
+  year      = {2026},
+  url       = {https://doi.org/10.62056/a3qjmpgxq},
+  doi       = {10.62056/A3QJMPGXQ},
+  timestamp = {Thu, 04 Jun 2026 17:14:56 +0200},
+  biburl    = {https://dblp.org/rec/journals/cic/FrigoS26.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
-@misc{crescent,
-  author       = {Paquin, Christian and Policharla, Guru-Vamsi and Zaverucha, Greg},
-  title        = {Crescent: Stronger Privacy for Existing Credentials},
-  howpublished = {Cryptology {ePrint} Archive, Paper 2024/2013},
-  year         = {2024},
-  url          = {https://eprint.iacr.org/2024/2013},
-  note         = {Presented at Real World Crypto 2025}
-}
-@inproceedings{zklogin,
-  author    = {Baldimtsi, Foteini and Chalkias, Konstantinos Kryptos and Ji, Yan and Lindstrom, Jonas and Maram, Deepak and Riva, Ben and Roy, Arnab and Sedaghat, Mahdi and Wang, Joy},
-  title     = {{zkLogin}: Privacy-Preserving Blockchain Authentication with Existing Credentials},
-  booktitle = {Proceedings of the 2024 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+@article{DBLP:journals/iacr/PaquinPZ24,
+  author    = {Christian Paquin and
+               Guru{-}Vamsi Policharla and
+               Greg Zaverucha},
+  title     = {Crescent: Stronger Privacy for Existing Credentials},
+  journal   = {{IACR} Cryptol. ePrint Arch.},
+  volume    = {2024},
+  pages     = {2013},
   year      = {2024},
-  publisher = {ACM},
-  url       = {https://arxiv.org/abs/2401.11735},
-  note      = {Presented at Real World Crypto 2025}
+  url       = {https://eprint.iacr.org/2024/2013},
+  timestamp = {Sun, 12 Jan 2025 00:08:05 +0100},
+  biburl    = {https://dblp.org/rec/journals/iacr/PaquinPZ24.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
-@inproceedings{legacy-sigs,
-  author    = {Woo, Anna P. Y. and Ozdemir, Alex and Sharp, Chad and Pornin, Thomas and Grubbs, Paul},
+@inproceedings{DBLP:conf/ccs/BaldimtsiC0LMR024,
+  author    = {Foteini Baldimtsi and
+               Konstantinos Kryptos Chalkias and
+               Yan Ji and
+               Jonas Lindstr{\o}m and
+               Deepak Maram and
+               Ben Riva and
+               Arnab Roy and
+               Mahdi Sedaghat and
+               Joy Wang},
+  editor    = {Bo Luo and
+               Xiaojing Liao and
+               Jun Xu and
+               Engin Kirda and
+               David Lie},
+  title     = {zkLogin: Privacy-Preserving Blockchain Authentication with Existing
+               Credentials},
+  booktitle = {Proceedings of the 2024 on {ACM} {SIGSAC} Conference on Computer and
+               Communications Security, {CCS} 2024, Salt Lake City, UT, USA, October
+               14-18, 2024},
+  pages     = {3182--3196},
+  publisher = {{ACM}},
+  year      = {2024},
+  url       = {https://doi.org/10.1145/3658644.3690356},
+  doi       = {10.1145/3658644.3690356},
+  timestamp = {Sun, 22 Dec 2024 15:48:20 +0100},
+  biburl    = {https://dblp.org/rec/conf/ccs/BaldimtsiC0LMR024.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+@inproceedings{DBLP:conf/sp/WooOSPG25,
+  author    = {Anna P. Y. Woo and
+               Alex Ozdemir and
+               Chad Sharp and
+               Thomas Pornin and
+               Paul Grubbs},
+  editor    = {Marina Blanton and
+               William Enck and
+               Cristina Nita{-}Rotaru},
   title     = {Efficient Proofs of Possession for Legacy Signatures},
-  booktitle = {2025 IEEE Symposium on Security and Privacy (S\&P)},
+  booktitle = {{IEEE} Symposium on Security and Privacy, {SP} 2025, San Francisco,
+               CA, USA, May 12-15, 2025},
+  pages     = {3291--3308},
+  publisher = {{IEEE}},
   year      = {2025},
-  publisher = {IEEE},
-  url       = {https://eprint.iacr.org/2025/538},
-  note      = {Presented at Real World Crypto 2025}
+  url       = {https://doi.org/10.1109/SP61157.2025.00080},
+  doi       = {10.1109/SP61157.2025.00080},
+  timestamp = {Fri, 04 Jul 2025 15:34:07 +0200},
+  biburl    = {https://dblp.org/rec/conf/sp/WooOSPG25.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 
 % --- EMV security ---
 
-@inproceedings{cntw,
-  author    = {Coron, Jean-S{\'e}bastien and Naccache, David and Tibouchi, Mehdi and Weinmann, Ralf-Philipp},
-  title     = {Practical Cryptanalysis of {ISO/IEC} 9796-2 and {EMV} Signatures},
-  booktitle = {Advances in Cryptology -- {CRYPTO} 2009},
-  year      = {2009},
+@inproceedings{DBLP:conf/crypto/CoronNTW09,
+  author    = {Jean{-}S{\'{e}}bastien Coron and
+               David Naccache and
+               Mehdi Tibouchi and
+               Ralf{-}Philipp Weinmann},
+  editor    = {Shai Halevi},
+  title     = {Practical Cryptanalysis of iso/iec 9796-2 and emv Signatures},
+  booktitle = {Advances in Cryptology - {CRYPTO} 2009, 29th Annual International
+               Cryptology Conference, Santa Barbara, CA, USA, August 16-20, 2009.
+               Proceedings},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {5677},
+  pages     = {428--444},
   publisher = {Springer},
-  url       = {https://eprint.iacr.org/2009/203}
+  year      = {2009},
+  url       = {https://doi.org/10.1007/978-3-642-03356-8\_25},
+  doi       = {10.1007/978-3-642-03356-8\_25},
+  timestamp = {Tue, 14 May 2019 10:00:48 +0200},
+  biburl    = {https://dblp.org/rec/conf/crypto/CoronNTW09.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
-@inproceedings{sha1-shambles,
-  author    = {Leurent, Ga{\"e}tan and Peyrin, Thomas},
-  title     = {{SHA-1} is a Shambles: First Chosen-Prefix Collision on {SHA-1} and Application to the {PGP} Web of Trust},
-  booktitle = {29th USENIX Security Symposium},
+@inproceedings{DBLP:conf/uss/LeurentP20,
+  author    = {Ga{\"{e}}tan Leurent and
+               Thomas Peyrin},
+  editor    = {Srdjan Capkun and
+               Franziska Roesner},
+  title     = {{SHA-1} is a Shambles: First Chosen-Prefix Collision on {SHA-1} and
+               Application to the {PGP} Web of Trust},
+  booktitle = {29th {USENIX} Security Symposium, {USENIX} Security 2020, August 12-14,
+               2020},
   pages     = {1839--1856},
+  publisher = {{USENIX} Association},
   year      = {2020},
-  publisher = {USENIX Association},
-  url       = {https://eprint.iacr.org/2020/014}
+  url       = {https://www.usenix.org/conference/usenixsecurity20/presentation/leurent},
+  timestamp = {Fri, 29 Jan 2021 22:08:57 +0100},
+  biburl    = {https://dblp.org/rec/conf/uss/LeurentP20.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 @misc{weis-rsa896,
   author       = {Weis, Stephen A.},
@@ -179,8 +259,8 @@
   type        = {Notice Bulletin},
   number      = {30},
   institution = {EMVCo},
-  month       = jul,
-  year        = {2026}
+  year        = {2026},
+  url         = {https://www.emvco.com/specifications/kl-bulletin-no30-emvco-annual-public-key-lengths-assessment}
 }
 @techreport{emvco-quantum,
   author      = {{EMVCo Security Working Group}},
@@ -188,35 +268,72 @@
   type        = {EMVCo SWG Position Paper},
   number      = {EMV-SWG-NP36r11},
   institution = {EMVCo},
-  month       = aug,
   year        = {2026}
 }
 
 % --- Proof system and toolchain ---
 
-@inproceedings{poseidon2,
-  author    = {Grassi, Lorenzo and Khovratovich, Dmitry and Schofnegger, Markus},
-  title     = {{Poseidon2}: A Faster Version of the {Poseidon} Hash Function},
-  booktitle = {Progress in Cryptology -- {AFRICACRYPT} 2023},
+@inproceedings{DBLP:conf/africacrypt/GrassiKS23,
+  author    = {Lorenzo Grassi and
+               Dmitry Khovratovich and
+               Markus Schofnegger},
+  editor    = {Nadia El Mrabet and
+               Luca De Feo and
+               Sylvain Duquesne},
+  title     = {Poseidon2: {A} Faster Version of the Poseidon Hash Function},
+  booktitle = {Progress in Cryptology - {AFRICACRYPT} 2023 - 14th International Conference
+               on Cryptology in Africa, Sousse, Tunisia, July 19-21, 2023, Proceedings},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {14064},
+  pages     = {177--203},
+  publisher = {Springer},
   year      = {2023},
-  publisher = {Springer},
-  url       = {https://eprint.iacr.org/2023/323}
+  url       = {https://doi.org/10.1007/978-3-031-37679-5\_8},
+  doi       = {10.1007/978-3-031-37679-5\_8},
+  timestamp = {Sat, 30 Sep 2023 09:33:45 +0200},
+  biburl    = {https://dblp.org/rec/conf/africacrypt/GrassiKS23.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
-@inproceedings{spartan,
-  author    = {Setty, Srinath},
-  title     = {{Spartan}: Efficient and General-Purpose {zkSNARKs} Without Trusted Setup},
-  booktitle = {Advances in Cryptology -- {CRYPTO} 2020},
+@inproceedings{DBLP:conf/crypto/Setty20,
+  author    = {Srinath T. V. Setty},
+  editor    = {Daniele Micciancio and
+               Thomas Ristenpart},
+  title     = {Spartan: Efficient and General-Purpose zkSNARKs Without Trusted Setup},
+  booktitle = {Advances in Cryptology - {CRYPTO} 2020 - 40th Annual International
+               Cryptology Conference, {CRYPTO} 2020, Santa Barbara, CA, USA, August
+               17-21, 2020, Proceedings, Part {III}},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {12172},
+  pages     = {704--737},
+  publisher = {Springer},
   year      = {2020},
-  publisher = {Springer},
-  url       = {https://eprint.iacr.org/2019/550}
+  url       = {https://doi.org/10.1007/978-3-030-56877-1\_25},
+  doi       = {10.1007/978-3-030-56877-1\_25},
+  timestamp = {Mon, 28 Aug 2023 21:17:50 +0200},
+  biburl    = {https://dblp.org/rec/conf/crypto/Setty20.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
-@inproceedings{whir,
-  author    = {Arnon, Gal and Chiesa, Alessandro and Fenzi, Giacomo and Yogev, Eylon},
-  title     = {{WHIR}: {Reed--Solomon} Proximity Testing with Super-Fast Verification},
-  booktitle = {Advances in Cryptology -- {EUROCRYPT} 2025},
-  year      = {2025},
+@inproceedings{DBLP:conf/eurocrypt/ArnonCFY25,
+  author    = {Gal Arnon and
+               Alessandro Chiesa and
+               Giacomo Fenzi and
+               Eylon Yogev},
+  editor    = {Serge Fehr and
+               Pierre{-}Alain Fouque},
+  title     = {{WHIR:} Reed-Solomon Proximity Testing with Super-Fast Verification},
+  booktitle = {Advances in Cryptology - {EUROCRYPT} 2025 - 44th Annual International
+               Conference on the Theory and Applications of Cryptographic Techniques,
+               Madrid, Spain, May 4-8, 2025, Proceedings, Part {IV}},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {15604},
+  pages     = {214--243},
   publisher = {Springer},
-  url       = {https://eprint.iacr.org/2024/1586}
+  year      = {2025},
+  url       = {https://doi.org/10.1007/978-3-031-91134-7\_8},
+  doi       = {10.1007/978-3-031-91134-7\_8},
+  timestamp = {Fri, 09 May 2025 20:28:53 +0200},
+  biburl    = {https://dblp.org/rec/conf/eurocrypt/ArnonCFY25.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 @misc{provekit,
   author       = {{World Foundation}},

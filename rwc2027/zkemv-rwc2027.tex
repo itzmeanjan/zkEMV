@@ -47,7 +47,7 @@
 % problem
 Any online business providing a free-tier service, such as AI inference tokens, GPU compute credits, privacy-focused virtual private network (VPN) or email relayer, faces abuse from spammers, often degrading the quality of service (QoS) for real customers.
 Stripe reports that 7.4\% of sign-ups at AI company websites are implicated in suspected multi-account abuse~\cite{stripe-abuse}.
-This is the classic Sybil attack~\cite{douceur-sybil}: without a trusted authority certifying identities, one user can always pose as many.
+This is the classic Sybil attack~\cite{DBLP:conf/iptps/Douceur02}: without a trusted authority certifying identities, one user can always pose as many.
 
 % solution
 Service providers resort to collecting user identifiables to stop spammers from easily creating new identities.
@@ -67,7 +67,7 @@ The EMV certificates however embed the card number, which is formally known as p
 % with ZK
 Zero-knowledge cryptography comes to a rescue: produce a zero-knowledge proof (ZKP) on user-device over the certificate chain without exposing the PAN.
 % differentiation
-Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{frigo-shelat}, JWT and mDL~\cite{crescent}, OpenID Connect~\cite{zklogin} and legacy signatures~\cite{legacy-sigs}, need enrolment with a government or a trusted identity provider.
+Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{DBLP:journals/cic/FrigoS26}, JWT and mDL~\cite{DBLP:journals/iacr/PaquinPZ24}, OpenID Connect~\cite{DBLP:conf/ccs/BaldimtsiC0LMR024} and legacy signatures~\cite{DBLP:conf/sp/WooOSPG25}, need enrolment with a government or a trusted identity provider.
 To the best of our knowledge, no earlier work presents zero-knowledge proving of EMV ODA with practical use cases it leads to.
 
 \section{The protocol}
@@ -82,7 +82,7 @@ The user device fetches the challenge and ensures the requested scope is same as
 The user taps the EMV card on their device, which forwards the payload, i.e., nonce and time, for signing by the card-held ICC private key.
 The card chip returns back the signature with both issuer and ICC certificate, which chains upto the root of trust anchor --- CA public key.
 The captured transcript of NFC communication is fed into the circuit for proving on user device.
-The proof outputs a 32-byte nullifier hash, i.e., Poseidon2~\cite{poseidon2} hash of card's certified ICC public key and verifier scope.
+The proof outputs a 32-byte nullifier hash, i.e., Poseidon2~\cite{DBLP:conf/africacrypt/GrassiKS23} hash of card's certified ICC public key and verifier scope.
 On receiving the ZKP, the verifier checks the proof's public inputs equal to its challenge and the CA key is what it trusts, followed by verifying the ZKP itself.
 
 \begin{figure}[t]
@@ -147,7 +147,7 @@ Anti-abuse aggregators such as the Human Passport~\cite{human-passport} could po
 
 A zkEMV proof is generated on user's own device, without the card data ever leaving it.
 The Noir~\cite{noir} circuits are proved using Provekit~\cite{provekit}, developed by World~\cite{world-provekit}.
-Provekit generates "zero-knowledge" proofs using a Spartan-based~\cite{spartan} sumcheck protocol with WHIR~\cite{whir} hash-based polynomial commitment scheme, without any trusted setup.
+Provekit generates "zero-knowledge" proofs using a Spartan-based~\cite{DBLP:conf/crypto/Setty20} sumcheck protocol with WHIR~\cite{DBLP:conf/eurocrypt/ArnonCFY25} hash-based polynomial commitment scheme, without any trusted setup.
 Each distinct EMV card profile gets its own circuit due to differences in RSA key bit-length.
 
 \begin{table}[ht]
@@ -171,7 +171,7 @@ A zkEMV proof shows that a genuinely issued card was live and tapped, but that d
 Skipping authentication of verifier origin lets a malicious verifier obtain nullifier for another verifier's scope, which effectively lets the malicious party scan user's presence across venues, if nullifier database gets leaked.
 Because Provekit proofs are zero-knowledge~\cite{world-provekit}, privacy of card data holds against verifiers, but not against card issuer network.
 Any merchant which has already seen an EMV card tap, i.e., it has captured the card-specific ICC public key, can deduce its nullifiers, by bruteforcing verifier "scope".
-zkEMV security model inherits EMV's ODA security: SHA-1 has seen chosen-prefix collision attack~\cite{sha1-shambles}, recently RSA-896 challenge number saw successful factoring surpassing previous records~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{cntw}.
+zkEMV security model inherits EMV's ODA security: SHA-1 has seen chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, recently RSA-896 challenge number saw successful factoring surpassing previous records~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
 EMVCo specifies the use of elliptic curve Schnorr digital signature algorithm (EC-SDSA) over NIST P-256 curve with SHA-256 hash function~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline signatures~\cite{emvco-quantum}.
 Even though with zkEMV a verifier does not see raw signatures over 4-byte nonce from the card-specific ICC key, if an attacker can harvest $k$ signatures from a card, it has the likelihood of $k \cdot 2^{-32}$ in successfully forging signatures on behalf of the card.
 
