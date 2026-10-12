@@ -7,7 +7,7 @@ help: ## Shows available recipes
 .PHONY: proposal
 proposal: ## Compiles LaTeX, generates RWC 2027 talk proposal as PDF
 	@echo "Compiling LaTeX, producing PDF proposal..."
-	latexmk -pdf -silent -auxdir=build -outdir=. zkemv-rwc2027.tex
+	latexmk -pdf -silent -auxdir=build -outdir=. zkemv.tex
 
 .PHONY: clean
 clean: ## Removes LaTeX build directory
