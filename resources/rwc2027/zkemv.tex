@@ -154,7 +154,7 @@ Anti-abuse aggregators such as Human Passport~\cite{human-passport} could accept
 A zkEMV proof is generated on the user's own device, without the card data ever leaving it.
 The Noir~\cite{noir} circuits are proved using ProveKit~\cite{provekit}, developed by World~\cite{world-provekit}.
 ProveKit generates zero-knowledge proofs using a Spartan-based~\cite{DBLP:conf/crypto/Setty20} sumcheck protocol with the WHIR~\cite{DBLP:conf/eurocrypt/ArnonCFY25} hash-based polynomial commitment scheme, without any trusted setup.
-Each EMV card profile gets its own circuit, since RSA key lengths differ between profiles.
+Each EMV card profile gets its own circuit, since payment networks implement ODA differently: Visa uses fast dynamic data authentication (fDDA), where the card signs both nonce and transaction data during transaction setup, while Mastercard uses dynamic data authentication (DDA), where it signs only the nonce on a separate step, and their RSA key lengths differ.
 
 \begin{table}[ht]
 \centering
