@@ -38,7 +38,7 @@
   The verifier checks the proof against the CA public key it trusts, without ever seeing the card number, expiry dates or certificates.
   It only learns a 32-byte nullifier which is deterministic for a card within a verifier-scope, and unlinkable across scopes, plus optionally requested card attributes, such as issuing country or whether it is a credit card.
   % perf
-  Proving runs entirely on the user's own device: on a Samsung Galaxy S25 Ultra running on battery power, it takes 700ms for a Visa card and 850ms for a Mastercard, and verification takes under 100ms.
+  Proving runs entirely on the user's own device: on a Samsung Galaxy S25 Ultra running on battery power, it takes 660ms for a Visa card and 823ms for a Mastercard, and verification takes under 100ms.
   % summarise
   The talk presents the zkEMV protocol and its security model, followed by a live demo.
   We hope it opens the door for discussion among stakeholders on how to design the future of human and agentic payment protocols in a more privacy-preserving way.
