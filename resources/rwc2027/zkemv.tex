@@ -45,7 +45,7 @@
   Proving runs entirely on the user's own device: on a Samsung Galaxy S25 Ultra running on battery power, it takes 660ms for a Visa card and 823ms for a Mastercard, and verification takes under 100ms.
   % summarise
   The talk presents the zkEMV protocol and its security model, followed by a live demo.
-  We hope it opens the door for discussion among stakeholders on how to design the future of human and agentic payment protocols in a more privacy-preserving way.
+  We hope it opens the door for discussion among stakeholders on how to design future payment protocols in a more privacy-preserving way.
 \end{abstract}
 
 \section{Motivation}
@@ -173,10 +173,13 @@ Proof size & 616.6\,KiB & 636.2\,KiB \\
 
 \section{Limitations}
 
-A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards.
+A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards; a verifier can raise the cost of such Sybil identities by requesting revelation of the card's funding type and rejecting prepaid cards.
 If the client skips authenticating the verifier's origin, a malicious verifier can obtain the nullifier for another verifier's scope, which lets it track a user's presence across venues if a nullifier database leaks.
 Because ProveKit proofs are zero-knowledge~\cite{world-provekit}, card data stays private against verifiers, but not against the card issuer or payment network.
 Any merchant that has already seen a tap of an EMV card, i.e., captured its ICC public key, can compute its nullifier for any scope it can guess.
+Since a tap needs no PIN, anyone who briefly holds or skims a card can also produce the ZKP, e.g., to get it banned or to pass a card-tap second factor authentication.
+On Visa fDDA, each tap also generates a genuine application cryptogram (ARQC) and increments the card's transaction counter; zkEMV discards that as cryptographic toxic waste, but a malicious prover app could use it for a pre-play attack~\cite{DBLP:conf/sp/BondCMSA14}.
+Cards provisioned to digital wallets cannot be read from that phone itself, and iOS restricts reading payment cards over NFC to approved apps, so zkEMV initially targets Android.
 zkEMV inherits the security of EMV's ODA: SHA-1 has a practical chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
 The RSA-896 challenge number was recently factored, setting a new record~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}.
 EMVCo specifies the elliptic curve Schnorr digital signature algorithm (EC-SDSA) over the NIST P-256 curve with SHA-256~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline authentication~\cite{emvco-quantum}.
@@ -185,7 +188,7 @@ Even though a zkEMV verifier never sees the card's raw signatures over a 4-byte 
 \section{Why RWC}
 
 This talk introduces a new privacy-preserving credential to the RWC audience, built on infrastructure already in billions of people's hands, using modern zero-knowledge cryptography, and entirely provable on the user's device.
-Its goal is to first show the audience how zkEMV wraps EMV's decades-old ODA protocol in a zero-knowledge proof, and then start an open discussion on the future design of EMV and agentic payments, so that the right guardrails get built into the protocol, protecting both user and agent privacy.
+Its goal is to first show the audience how zkEMV wraps EMV's decades-old ODA protocol in a zero-knowledge proof, and then start an open discussion on the future design of EMV, so that the right guardrails get built into the protocol, protecting user privacy.
 To give the audience a taste of practicality, the talk includes a live onstage demo.
 
 {\footnotesize
