@@ -114,7 +114,7 @@ On receiving the ZKP, the verifier checks that the proof's public inputs equal i
 \end{figure}
 
 \paragraph{Statement.}
-The public inputs to the circuit are the CA public key, nonce, time, scope, and the optional attribute bits with a BIN-table Merkle root.
+The public inputs to the circuit are the CA public key, nonce, time, scope, the optional attribute bits with a BIN-table Merkle root, and, for Visa, the transaction amount and currency.
 % cert chain
 As depicted in Figure~\ref{fig:chain}, three RSA signatures are verified along the EMV certificate chain, each recovering the signed message as $\texttt{msg} = \texttt{sig} ^ 3 \bmod n$, where $n$ is the RSA modulus.
 Each recovered message is parsed following ISO/IEC 9796-2~\cite{iso9796-2} message recovery, asserting its fixed header, trailer and format bytes.
