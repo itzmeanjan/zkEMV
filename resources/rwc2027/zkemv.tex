@@ -33,7 +33,7 @@
   The captured transcript of communication over NFC is used for locally proving that a genuine EMV card signed a challenge "nonce" presented by the verifier, and that its issuer and card certificates are not expired.
   % verifier pov
   The verifier receives a zero-knowledge proof (ZKP) which it can instantly verify against root of trust CA public key without ever needing to see the card number, expiry dates or none of its certificates.
-  The ZKP carries a verifier-scoped 32-byte nullifier hash that is linked to the card's ICC public key, resisting Sybil attack vector.
+  The ZKP carries a verifier-scoped deterministic 32-byte nullifier hash that is linked to the card's ICC public key for resisting Sybil attack vector.
   On verifier's request the client can selectively disclose some attributes derivable from the card's bank identification number (BIN), i.e., first 6 to 8 digits of card number, such as, card issuing country, bank or nature of funding.
   % perf
   Proving runs entirely on user-owned device: when a Samsung Galaxy S25 Ultra is running on battery power, it takes 700ms for a Visa card and 800ms for a Mastercard, to prove ODA in zero-knowledge using Provekit, which implements a Spartan-based sumcheck protocol with WHIR polynomial commitment scheme.
