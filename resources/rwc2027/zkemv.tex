@@ -40,7 +40,7 @@
   To the best of our knowledge, this is the first work on zero-knowledge proof of EMV ODA.
   % verifier pov
   The verifier checks the proof against the CA public key it trusts, without ever seeing the card number, expiry dates or certificates.
-  It only learns a 32-byte nullifier which is deterministic for a card within a verifier-scope, and unlinkable across scopes, plus optionally requested card attributes, such as issuing country or whether it is a credit card.
+  It only learns a 32-byte nullifier which is deterministic for a card within a scope, such as a verifier or an event, and unlinkable across scopes, plus optionally requested card attributes, such as issuing country or whether it is a credit card.
   % perf
   Proving runs entirely on the user's own device: on a Samsung Galaxy S25 Ultra running on battery power, it takes 660ms for a Visa card and 823ms for a Mastercard, and verification takes under 100ms.
   % summarise
@@ -57,7 +57,7 @@ Fly.io required a card even for its free services, not to charge it, but to keep
 This abuse is the classic Sybil attack~\cite{DBLP:conf/iptps/Douceur02}: without a trusted authority certifying identities, one user can always pose as many.
 
 % solution
-Service providers resort to collecting identifying user data, to stop spammers from easily creating new identities.
+Service providers resort to collecting identifying user data to stop spammers from easily creating new identities.
 The usual defences are verifying a phone number, uploading a government-issued identity card, or adding a payment card.
 These let service providers deduplicate user accounts and limit resource usage to unique users.
 For convenience, major card networks such as Visa and Mastercard offer tap-to-verify products~\cite{visa-tap,mc-tap-to-verify}.
@@ -81,7 +81,7 @@ To the best of our knowledge, no earlier work proves EMV ODA in zero knowledge o
 
 There are two participants in the protocol: a user (prover) and a service provider (verifier).
 The user has a near field communication (NFC) capable device and an EMV card in their physical possession.
-The user proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time.
+The user proves to the service provider that they tapped a genuine EMV card, whose certificates have not expired, on their device.
 
 \paragraph{Flow.}
 The verifier issues a challenge: a random 4-byte nonce, the current time at month-level granularity (\texttt{YY-MM}), a \emph{scope} and optional bits requesting card attributes derived from the bank identification number (BIN), i.e., the first 6 to 8 digits of the PAN.
@@ -123,7 +123,7 @@ Each recovered certificate holds the next public key in the chain, which continu
 Additionally, it enforces that the issuer identifier matches the PAN prefix and that neither certificate has expired as of the verifier-chosen \texttt{YY-MM}.
 % nullifier
 To prevent a malicious user from proving a forged statement, the circuit computes predicates only from bytes covered by the signatures in the certificate chain.
-The nullifier is therefore deterministic for a card within a verifier-scope, and unlinkable across them.
+The nullifier is therefore deterministic for a card within a scope, such as a verifier or an event, and unlinkable across scopes.
 % attributes
 Optionally, the circuit reveals requested attributes without exposing the BIN, such as the issuing country, whether it is a credit, debit or prepaid card, its brand, and whether it is for commercial use.
 It proves inclusion in a binary Merkle tree, built with Poseidon2 over ranges of the PAN's first 12 digits, against a Merkle root which the verifier commits to.
@@ -176,7 +176,7 @@ Proof size & 616.6\,KiB & 636.2\,KiB \\
 A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards.
 If the client skips authenticating the verifier's origin, a malicious verifier can obtain the nullifier for another verifier's scope, which lets it track a user's presence across venues if a nullifier database leaks.
 Because ProveKit proofs are zero-knowledge~\cite{world-provekit}, card data stays private against verifiers, but not against the card issuer or payment network.
-Any merchant which has already seen a tap of an EMV card, i.e., captured its ICC public key, can compute its nullifier for any scope it can guess.
+Any merchant that has already seen a tap of an EMV card, i.e., captured its ICC public key, can compute its nullifier for any scope it can guess.
 zkEMV inherits the security of EMV's ODA: SHA-1 has a practical chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
 The RSA-896 challenge number was recently factored, setting a new record~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}.
 EMVCo specifies the elliptic curve Schnorr digital signature algorithm (EC-SDSA) over the NIST P-256 curve with SHA-256~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline authentication~\cite{emvco-quantum}.
