@@ -47,45 +47,46 @@
 \section{Motivation}
 
 % problem
-Any online business providing a free-tier service, such as AI inference tokens, GPU compute credits, privacy-focused virtual private network (VPN) or email relayer, faces abuse from spammers, often degrading the quality of service (QoS) for real customers.
-Stripe reports that 7.4\% of sign-ups at AI company websites are implicated in suspected multi-account abuse~\cite{stripe-abuse}.
-This is the classic Sybil attack~\cite{DBLP:conf/iptps/Douceur02}: without a trusted authority certifying identities, one user can always pose as many.
+Any online business offering a free tier, such as AI inference tokens, GPU compute credits, CI run minutes, a privacy-focused virtual private network (VPN) or an email relay, faces abuse from spammers, often degrading the quality of service (QoS) for real customers.
+Stripe reports that 7.4\% of sign-ups at AI company websites are implicated in suspected multi-account abuse~\cite{stripe-abuse}, and after a massive uptick in crypto mining on free CI minutes, GitLab began requiring new free-tier customers to provide a valid payment card~\cite{gitlab-crypto-mining}.
+Fly.io required a card even for its free services, not to charge it, but to keep out VMs mining cryptocurrencies~\cite{flyio-free-postgres}, and Heroku phased out its free plans altogether in 2022, citing the effort of managing their fraud and abuse~\cite{heroku-next-chapter}.
+This abuse is the classic Sybil attack~\cite{DBLP:conf/iptps/Douceur02}: without a trusted authority certifying identities, one user can always pose as many.
 
 % solution
-Service providers resort to collecting user identifiables to stop spammers from easily creating new identities.
-The usual defence mechanism includes verify customer phone number, upload Govt. issued identity card, or add a payment card.
-These help service providers deduplicate user accounts and limit resource usage to only unique users.
-For sake of convenience, major card networks such Visa and Mastercard offer tap-to-verify products~\cite{visa-tap,mc-tap-to-verify}.
+Service providers resort to collecting identifying user data, to stop spammers from easily creating new identities.
+The usual defences are verifying a phone number, uploading a government-issued identity card, or adding a payment card.
+These let service providers deduplicate user accounts and limit resource usage to unique users.
+For convenience, major card networks such as Visa and Mastercard offer tap-to-verify products~\cite{visa-tap,mc-tap-to-verify}.
 % new problem
-But it opens door to a much bigger problem: service providers have the responsibility of carefully handling any customer data which falls under the umbrella of PII, as they become a lucrative target for hackers.
-Then there are privacy-concious customers who are aware of these potential data breaches and they prefer not to put their card number, expiry dates or CVV on a random website, which leaves them unable to try out a product or service.
+But this opens the door to a bigger problem: service providers must carefully handle any personally identifiable information (PII) they collect, because it is a lucrative target for hackers.
+Privacy-conscious customers, aware of such data breaches, prefer not to put their card number, expiry date or CVV on a random website, which leaves them unable to try out a product or service.
 
-Surprisingly each chip-based card already holds necessary cryptographic foundation to build a much more privacy-respecting authentication mechanism.
+Surprisingly, every chip card already holds the cryptographic foundation for a much more privacy-respecting authentication mechanism.
 % no ZK
-During ODA, a contactless card sends the reader a certificate chain with a fresh challenge signed with the private key counterpart, it holds inside the chip~\cite{emv-book2}.
-These credentials are already issued and in circulation, almost 15.6 billion EMV chip cards are in use~\cite{emvco-stats}, contrary to Privacy Pass~\cite{privacypass} and Private Access Tokens~\cite{apple-pat} which rely on a platform attester.
+During ODA, a contactless card sends the reader a certificate chain and a signature over the reader's fresh challenge, made with the private key held inside the chip~\cite{emv-book2}.
+These credentials are already issued and in circulation, with almost 15.6 billion EMV chip cards in use~\cite{emvco-stats}, unlike Privacy Pass~\cite{privacypass} and Private Access Tokens~\cite{apple-pat}, which rely on a platform attester.
 % problem
-The EMV certificates however embed the card number, which is formally known as primary account number (PAN), so verifying the certificate chain server-side means handing over user identifiables.
+However, the EMV certificates embed the card number, formally the primary account number (PAN), so verifying the certificate chain server-side means handing over identifying user data.
 % with ZK
-Zero-knowledge cryptography comes to a rescue: produce a zero-knowledge proof (ZKP) on user-device over the certificate chain without exposing the PAN.
+Zero-knowledge cryptography comes to the rescue: the user's device produces a zero-knowledge proof (ZKP) over the certificate chain without exposing the PAN.
 % differentiation
 Zero-knowledge proofs over existing credentials, such as mdoc with ECDSA~\cite{DBLP:journals/cic/FrigoS26}, JWT and mDL~\cite{DBLP:journals/iacr/PaquinPZ24}, OpenID Connect~\cite{DBLP:conf/ccs/BaldimtsiC0LMR024} and legacy signatures~\cite{DBLP:conf/sp/WooOSPG25}, need enrolment with a government or a trusted identity provider.
-To the best of our knowledge, no earlier work presents zero-knowledge proving of EMV ODA with practical use cases it leads to.
+To the best of our knowledge, no earlier work proves EMV ODA in zero knowledge or explores the practical use cases it enables.
 
 \section{The protocol}
 
 There are two participants in the protocol: a user (prover) and a service provider (verifier).
-User has a near field communication (NFC) capable device and an EMV card in their physical possession.
-User proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time.
+The user has a near field communication (NFC) capable device and an EMV card in their physical possession.
+The user proves to the service provider that they tapped a genuine EMV card on their device whose certificates have not expired as of verification time.
 
 \paragraph{Flow.}
-The verifier issues a challenge: a random 4-byte nonce, the current time at month-level granularity (in format \texttt{YY-MM}), a \emph{scope} and optionally set bits for revealing card attributes, derivable from BIN.
-The user device fetches the challenge and ensures the requested scope is same as the origin authenticates to over TLS.
-The user taps the EMV card on their device, which forwards the payload, i.e., nonce and time, for signing by the card-held ICC private key.
-The card chip returns back the signature with both issuer and ICC certificate, which chains upto the root of trust anchor --- CA public key.
-The captured transcript of NFC communication is fed into the circuit for proving on user device.
-The proof outputs a 32-byte nullifier hash, i.e., Poseidon2~\cite{DBLP:conf/africacrypt/GrassiKS23} hash of card's certified ICC public key and verifier scope.
-On receiving the ZKP, the verifier checks the proof's public inputs equal to its challenge and the CA key is what it trusts, followed by verifying the ZKP itself.
+The verifier issues a challenge: a random 4-byte nonce, the current time at month-level granularity (\texttt{YY-MM}), a \emph{scope} and optional bits requesting card attributes derived from the bank identification number (BIN), i.e., the first 6 to 8 digits of the PAN.
+The user's device fetches the challenge and checks that the requested scope matches the origin it authenticated over TLS.
+The user taps the EMV card on their device, which forwards the nonce for signing by the card-held ICC private key.
+The card returns the signature with both the issuer and ICC certificates, which chain up to the trust anchor~--- the CA public key.
+The captured transcript of the NFC communication is fed into the ZK circuit for proving on the user's device.
+The proof outputs a 32-byte nullifier, the Poseidon2~\cite{DBLP:conf/africacrypt/GrassiKS23} hash of the card's certified ICC public key and the scope.
+On receiving the ZKP, the verifier checks that the proof's public inputs equal its challenge and that the CA key is one it trusts, then verifies the ZKP itself.
 
 \begin{figure}[t]
 \centering
@@ -93,7 +94,7 @@ On receiving the ZKP, the verifier checks the proof's public inputs equal to its
   box/.style={draw, rounded corners=2pt, inner sep=2.5pt, align=center, minimum height=7mm},
   arr/.style={-{Latex[length=1.6mm]}}]
   \node[box, fill=yellow!20] (ca) {CA pubkey};
-  \node[box, fill=red!8, right=of ca] (iss) {Issuer cert.\\\scriptsize (issuer ID, expiry)};
+  \node[box, fill=red!8, right=of ca] (iss) {Issuer cert.\\\scriptsize (Issuer ID, expiry, Issuer pubkey)};
   \node[box, fill=red!8, right=of iss] (icc) {ICC cert.\\\scriptsize (PAN, expiry, ICC pubkey)};
   \node[box, fill=red!8, right=of icc] (sdad) {Signature};
   \node[box, fill=yellow!20, right=of sdad] (nonce) {Verifier's challenge};
@@ -109,48 +110,47 @@ On receiving the ZKP, the verifier checks the proof's public inputs equal to its
 \end{figure}
 
 \paragraph{Statement.}
-The public inputs to the circuit are CA public key, nonce, time, scope and optional bits set for revealing attributes (based on BIN) with a BIN-table Merkle root.
+The public inputs to the circuit are the CA public key, nonce, time, scope, and the optional attribute bits with a BIN-table Merkle root.
 % cert chain
-As depicted in Figure~\ref{fig:chain}, three RSA signatures are verified along the EMV certificate chain, such that the signed messages are recovered with $\texttt{msg} = \texttt{sig} ^ 3 \bmod n$, where $n$ is the RSA modulus.
-Recovered messages are parsed following ISO 9796-2~\cite{iso9796-2} encoding with sufficient assertions.
-Then it recomputes the SHA-1 hash~\cite{fips180-4} over the recovered message to enforce integrity.
-Recovered message holds the next public key in certificate chain to continue with the authenticity check.
-Additionally it enforces that the issuer identifier matches the card PAN prefix and both certificates are not expired compared to the verifier-chosen \texttt{YY-MM}.
+As depicted in Figure~\ref{fig:chain}, three RSA signatures are verified along the EMV certificate chain, each recovering the signed message as $\texttt{msg} = \texttt{sig} ^ 3 \bmod n$, where $n$ is the RSA modulus.
+Each recovered message is parsed following ISO/IEC 9796-2~\cite{iso9796-2} message recovery, asserting its fixed header, trailer and format bytes.
+The circuit then recomputes the SHA-1 hash~\cite{fips180-4} over the recovered message and checks it against the hash embedded in it.
+Each recovered certificate holds the next public key in the chain, which continues the authenticity check.
+Additionally, it enforces that the issuer identifier matches the PAN prefix and that neither certificate has expired as of the verifier-chosen \texttt{YY-MM}.
 % nullifier
-To prevent a malicious user from proving forgable statements, the circuit computes predicates only from bytes which are covered by the signatures in the certificate chain.
-The circuit-output nullifier is deterministic for an EMV card with a verifier-scoped challenge.
-The scope is what dictates if the nullifier is linkable across verifiers: to prevent a malicious verifier from learning nullifier in another verifier's scope, the client only accepts challenge which originates from an authenticated scope.
+To prevent a malicious user from proving a forged statement, the circuit computes predicates only from bytes covered by the signatures in the certificate chain.
+The nullifier is therefore deterministic for a card within a verifier-scope, and unlinkable across them.
 % attributes
-Optionally the circuit can reveal certain requested attributes without exposing the BIN, i.e., the card issuer country, whether it is credit, debit or prepaid card, brand name and whether or not for commercial use.
-A binary Merkle tree, built with Poseidon2 hash function, over ranges of first 12 digits of PAN, is used for proving inclusion against the Merkle root hash, which the challenger commits to.
+Optionally, the circuit reveals requested attributes without exposing the BIN, such as the issuing country, whether it is a credit, debit or prepaid card, its brand, and whether it is for commercial use.
+It proves inclusion in a binary Merkle tree, built with Poseidon2 over ranges of the PAN's first 12 digits, against a Merkle root which the verifier commits to.
 
 \section{Use cases}
 
-zkEMV-based authentication helps anywhere fake accounts drain resources from real users and no actual payment needs to happen.
-User does not need to enter their card details trusting a random website and the website database operator does not need to worry about hackers getting their hands on the card-data mine.
+zkEMV-based authentication helps wherever fake accounts drain resources from real users and no actual payment needs to happen.
+Users do not need to trust a random website with their card details, and the website's database no longer holds card data for hackers to steal.
 
 \begin{itemize}
 \item \textbf{Free tiers and trials}
-Daily quota of LLM token allowance for each account proving possession of a genuine EMV card without ever risking loss of customer data.
+A daily quota of LLM tokens for each account that proves possession of a genuine EMV card, without any risk of leaking customer data.
 \item \textbf{Sticky banlists}
-Communities on Discord which seek only well-mannered humans, may maintain a banlist with scoped nullifiers, without ever seeing user's card details or email address.
+Discord communities which seek only well-mannered humans can maintain a banlist of scoped nullifiers, without ever seeing a user's card details or email address.
 \item \textbf{One vote per card}
-Polls and petitions allowing only one participation from one EMV card-owner, with nullifiers staying unlinkable across events preserve user privacy from curious platform operator.
-\item \textbf{Two factor authentication}
-Before letting any irreversible account operation to happen, user taps their EMV card on their phone to prove that it derives the enrolled nullifier.
+Polls and petitions allow only one participation per EMV card, while nullifiers stay unlinkable across events, preserving user privacy from a curious platform operator.
+\item \textbf{Two-factor authentication}
+Before any irreversible account operation, the user taps their EMV card on their phone to prove that it derives the enrolled nullifier.
 \item \textbf{Bot friction}
-To evade bots from spamming service, accepting zkEMV proof is a privacy-respecting alternative.
+Accepting a zkEMV proof is a privacy-respecting way to keep bots from spamming a service.
 \end{itemize}
 
-Additionally services might impose constraints such as "it needs to be a credit card issued in a specific country" without them learning the card number.
-Anti-abuse aggregators such as the Human Passport~\cite{human-passport} could potentially accept a zkEMV proof as another signal.
+Additionally, services might impose constraints such as ``it needs to be a credit card issued in a specific country'' without learning the card number.
+Anti-abuse aggregators such as Human Passport~\cite{human-passport} could accept a zkEMV proof as another signal.
 
 \section{Client-side proving}
 
-A zkEMV proof is generated on user's own device, without the card data ever leaving it.
-The Noir~\cite{noir} circuits are proved using Provekit~\cite{provekit}, developed by World~\cite{world-provekit}.
-Provekit generates "zero-knowledge" proofs using a Spartan-based~\cite{DBLP:conf/crypto/Setty20} sumcheck protocol with WHIR~\cite{DBLP:conf/eurocrypt/ArnonCFY25} hash-based polynomial commitment scheme, without any trusted setup.
-Each distinct EMV card profile gets its own circuit due to differences in RSA key bit-length.
+A zkEMV proof is generated on the user's own device, without the card data ever leaving it.
+The Noir~\cite{noir} circuits are proved using ProveKit~\cite{provekit}, developed by World~\cite{world-provekit}.
+ProveKit generates zero-knowledge proofs using a Spartan-based~\cite{DBLP:conf/crypto/Setty20} sumcheck protocol with the WHIR~\cite{DBLP:conf/eurocrypt/ArnonCFY25} hash-based polynomial commitment scheme, without any trusted setup.
+Each EMV card profile gets its own circuit, since RSA key lengths differ between profiles.
 
 \begin{table}[ht]
 \centering
@@ -164,32 +164,33 @@ Verify & 85\,ms & 91\,ms \\
 Proof size & 616.6\,KiB & 636.2\,KiB \\
 \bottomrule
 \end{tabular}
-\caption{On a Samsung Galaxy S25 Ultra (Snapdragon 8 Elite, Android 16, RAM 12GB), on battery.}
+\caption{On a Samsung Galaxy S25 Ultra (Snapdragon 8 Elite, Android 16, 12\,GB RAM), on battery.}
 \end{table}
 
 \section{Limitations}
 
-A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not necessarily prove "personhood" due to relative ease for one to possess multiple EMV cards.
-Skipping authentication of verifier origin lets a malicious verifier obtain nullifier for another verifier's scope, which effectively lets the malicious party scan user's presence across venues, if nullifier database gets leaked.
-Because Provekit proofs are zero-knowledge~\cite{world-provekit}, privacy of card data holds against verifiers, but not against card issuer network.
-Any merchant which has already seen an EMV card tap, i.e., it has captured the card-specific ICC public key, can deduce its nullifiers, by bruteforcing verifier "scope".
-zkEMV security model inherits EMV's ODA security: SHA-1 has seen chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, recently RSA-896 challenge number saw successful factoring surpassing previous records~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
-EMVCo specifies the use of elliptic curve Schnorr digital signature algorithm (EC-SDSA) over NIST P-256 curve with SHA-256 hash function~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline signatures~\cite{emvco-quantum}.
-Even though with zkEMV a verifier does not see raw signatures over 4-byte nonce from the card-specific ICC key, if an attacker can harvest $k$ signatures from a card, it has the likelihood of $k \cdot 2^{-32}$ in successfully forging signatures on behalf of the card.
+A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards.
+If the client skips authenticating the verifier's origin, a malicious verifier can obtain the nullifier for another verifier's scope, which lets it track a user's presence across venues if a nullifier database leaks.
+Because ProveKit proofs are zero-knowledge~\cite{world-provekit}, card data stays private against verifiers, but not against the card issuer or payment network.
+Any merchant which has already seen a tap of an EMV card, i.e., captured its ICC public key, can compute its nullifier for any scope it can guess.
+zkEMV inherits the security of EMV's ODA: SHA-1 has a practical chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
+The RSA-896 challenge number was recently factored, setting a new record~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}.
+EMVCo specifies the elliptic curve Schnorr digital signature algorithm (EC-SDSA) over the NIST P-256 curve with SHA-256~\cite{emv-c8,emv-book-e}, but most issued contactless cards still rely on RSA for offline authentication~\cite{emvco-quantum}.
+Even though a zkEMV verifier never sees the card's raw signatures over a 4-byte nonce, an attacker who harvests $k$ signatures from a card can impersonate it with probability $k \cdot 2^{-32}$ per challenge.
 
 \section{Why RWC}
 
-This talk introduces a new privacy-preserving credential to RWC audience, built off existing infrastructure already in billions of people's hands, using modern zero-knowledge cryptography, entirely provable on user's device.
-The goal of this talk is to first introduce the audience to how zkEMV wraps EMV's decades old ODA protocol in a zero-knowledge proof and start an open discussion on the future design direction of EMV and agentic payments, so that the right guardrails can be built-in the protocol, protecting both user and agent privacy.
-To give audience the taste of practicality, the talk includes a live onstage demo.
+This talk introduces a new privacy-preserving credential to the RWC audience, built on infrastructure already in billions of people's hands, using modern zero-knowledge cryptography, and entirely provable on the user's device.
+Its goal is to first show the audience how zkEMV wraps EMV's decades-old ODA protocol in a zero-knowledge proof, and then start an open discussion on the future design of EMV and agentic payments, so that the right guardrails get built into the protocol, protecting both user and agent privacy.
+To give the audience a taste of practicality, the talk includes a live onstage demo.
 
 \section*{Speaker}
 
-\textbf{Anjan Roy} is a PhD candidate in applied cryptography at Radboud University, The Netherlands, supervised by Prof. Joan Daemen and Dr. Gilles Van Assche.
+\textbf{Anjan Roy} is a PhD candidate in applied cryptography at Radboud University, the Netherlands, supervised by Prof. Joan Daemen and Dr. Gilles Van Assche.
 He also leads engineering of a zkAppchain at Avail, which powers privacy-preserving payments and DeFi on public blockchains.
-He was previously a senior cryptography engineer at the Technology Innovation Institute (TII) in UAE, building UAE's sovereign cryptography stack, and before that a blockchain engineer at Polygon Labs, working on Polygon PoS blockchain and zkSTARK-based Miden custom virtual machine.
-He also maintains multiple open-source software libraries spanning from blazing fast erasure coding to symmetric and post-quantum cryptography.
-His recent public talks include teaching constant-time cryptography at Cedarcrypt~2026 summer school and sharing 5~years of experience of developing open-source cryptography software at RWPQC~2026.
+He was previously a senior cryptography engineer at the Technology Innovation Institute (TII) in the UAE, building the UAE's sovereign cryptography stack, and before that a blockchain engineer at Polygon Labs, working on the Polygon PoS blockchain and the zkSTARK-based Miden virtual machine.
+He maintains multiple open-source software libraries, ranging from blazing fast erasure coding to symmetric and post-quantum cryptography.
+His recent public talks include teaching constant-time cryptography at the Cedarcrypt~2026 summer school and sharing 5~years of experience developing open-source cryptography software at RWPQC~2026.
 
 {\footnotesize
 \bibliographystyle{plainurl}
