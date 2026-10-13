@@ -154,6 +154,7 @@ Anti-abuse aggregators such as Human Passport~\cite{human-passport} could accept
 A zkEMV proof is generated on the user's own device, without the card data ever leaving it.
 The Noir~\cite{noir} circuits are proved using ProveKit~\cite{provekit}, developed by World~\cite{world-provekit}.
 ProveKit generates zero-knowledge proofs using a Spartan-based~\cite{DBLP:conf/crypto/Setty20} sumcheck protocol with the WHIR~\cite{DBLP:conf/eurocrypt/ArnonCFY25} hash-based polynomial commitment scheme, without any trusted setup.
+Sub-second local proving (Table~\ref{table:perf}) comes from two circuit optimizations: each RSA message recovery with exponent 3 is checked by a polynomial identity over 120-bit limbs, costing about 3.6k R1CS constraints per 1984-bit signature, less than half of an off-the-shelf bignum arithmetic library, and SHA-1 is built on spread-table lookups, costing 4.6k constraints per 64-byte message block, less than half of an off-the-shelf SHA-1 circuit.
 Each EMV card profile gets its own circuit, since payment networks implement ODA differently: Visa uses fast dynamic data authentication (fDDA), where the card signs both nonce and transaction data during transaction setup, while Mastercard uses dynamic data authentication (DDA), where it signs only the nonce on a separate step, and their RSA key lengths differ.
 
 \begin{table}[ht]
@@ -169,16 +170,17 @@ Proof size & 616.6\,KiB & 636.2\,KiB \\
 \bottomrule
 \end{tabular}
 \caption{On a Samsung Galaxy S25 Ultra (Snapdragon 8 Elite, Android 16, 12\,GB RAM), on battery.}
+\label{table:perf}
 \end{table}
 
 \section{Limitations}
 
-A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards; a verifier can raise the cost of such Sybil identities by requesting revelation of the card's funding type and rejecting prepaid cards.
+A zkEMV proof shows that a genuinely issued card was live and tapped, but that does not prove ``personhood'', since one person can easily hold multiple EMV cards; a verifier can raise the cost of such Sybil identities by requesting the card's funding type and rejecting prepaid cards.
 If the client skips authenticating the verifier's origin, a malicious verifier can obtain the nullifier for another verifier's scope, which lets it track a user's presence across venues if a nullifier database leaks.
 Because ProveKit proofs are zero-knowledge~\cite{world-provekit}, card data stays private against verifiers, but not against the card issuer or payment network.
 Any merchant that has already seen a tap of an EMV card, i.e., captured its ICC public key, can compute its nullifier for any scope it can guess.
 Since a tap needs no PIN, anyone who briefly holds or skims a card can also produce the ZKP, e.g., to get it banned or to pass a card-tap second factor authentication.
-On Visa fDDA, each tap also generates a genuine application cryptogram (ARQC) and increments the card's transaction counter; zkEMV discards that as cryptographic toxic waste, but a malicious prover app could use it for a pre-play attack~\cite{DBLP:conf/sp/BondCMSA14}.
+On Visa fDDA, each tap also generates a genuine application cryptogram (ARQC) and increments the card's transaction counter; zkEMV discards it, but a malicious prover app could use it for a pre-play attack~\cite{DBLP:conf/sp/BondCMSA14}.
 Cards provisioned to digital wallets cannot be read from that phone itself, and iOS restricts reading payment cards over NFC to approved apps, so zkEMV initially targets Android.
 zkEMV inherits the security of EMV's ODA: SHA-1 has a practical chosen-prefix collision attack~\cite{DBLP:conf/uss/LeurentP20}, and ISO/IEC 9796-2 has well-studied forgery attacks~\cite{DBLP:conf/crypto/CoronNTW09}.
 The RSA-896 challenge number was recently factored, setting a new record~\cite{weis-rsa896}, though EMVCo expects 1984-bit RSA keys to last until at least 2036~\cite{emvco-kl30}.
