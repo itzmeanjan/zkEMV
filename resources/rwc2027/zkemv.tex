@@ -32,7 +32,7 @@
   The usual defence is to verify a phone number, a government-issued identity card or a payment card, which makes the service hold personally identifiable information (PII), a lucrative target for hackers, and turns away privacy-conscious users.
   % insight
   EMVCo reports over 15.6 billion EMV chip cards are in use.
-  Each chip-card authenticates itself to readers through an \emph{offline data authentication} (ODA) step, signing a fresh challenge with a key that an RSA certificate chain ties to the certification authority (CA).
+  Each chip card authenticates itself to readers through an \emph{offline data authentication} (ODA) step, signing a fresh challenge with a key that an RSA certificate chain ties to the certification authority (CA).
   But these certificates embed the card number, so verifying the chain server-side means handing over the card number itself.
   % zkEMV
   In \emph{zkEMV}, the user taps their contactless card on their own NFC-capable device, which proves locally in zero knowledge that a genuine EMV card signed the verifier's challenge and that its certificates have not expired.
