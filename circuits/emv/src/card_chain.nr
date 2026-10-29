@@ -77,9 +77,10 @@ global SDAD_HASH_ALG_OFFSET: u32 = FIELDS_OFFSET;
 global DYNAMIC_DATA_BYTE_LEN_OFFSET: u32 = SDAD_HASH_ALG_OFFSET + ALGORITHM_ID_BYTE_LEN;
 global DYNAMIC_DATA_OFFSET: u32 = DYNAMIC_DATA_BYTE_LEN_OFFSET + LENGTH_FIELD_BYTE_LEN;
 
-fn assert_envelope<let L: u32>(m: [u8; L], format: u8) {
+/// The format byte is inside the signature, so accepting any of `formats` admits no other data.
+fn assert_envelope<let L: u32, let F: u32>(m: [u8; L], formats: [u8; F]) {
     assert_eq(m[HEADER_OFFSET], RECOVERED_DATA_HEADER, "recovered data header is not 6A");
-    assert_eq(m[FORMAT_OFFSET], format, "unexpected recovered data format");
+    assert(formats.any(|format| format == m[FORMAT_OFFSET]), "unexpected recovered data format");
     assert_eq(m[L - TRAILER_BYTE_LEN], RECOVERED_DATA_TRAILER, "recovered data trailer is not BC");
 }
 
@@ -184,7 +185,7 @@ impl RecoveredIssuerCert {
     /// Book 2 table 6.
     pub fn verify<let K: u32, let REM: u32>(self, remainder: [u8; REM], exponent: u8, today: u32) -> IssuerCert<K> {
         let m = self.bytes;
-        assert_envelope(m, FMT_ISSUER_CERT);
+        assert_envelope(m, [FMT_ISSUER_CERT]);
         assert_eq(m[ISSUER_HASH_ALG_OFFSET], HASH_ALG_SHA1, "issuer certificate hash algorithm is not SHA-1");
         assert_eq(m[ISSUER_PK_ALG_OFFSET], PK_ALG_RSA, "issuer key algorithm is not RSA");
         assert_eq(m[ISSUER_KEY_BYTE_LEN_OFFSET] as u32, K, "issuer key length does not match this circuit");
@@ -215,7 +216,7 @@ impl<let L: u32> RecoveredIccCert<L> {
     /// Book 2 table 14. With no static data (`S = 0`) the cheaper fixed-length hash is used.
     pub fn verify<let K: u32, let REM: u32, let S: u32>(self, remainder: [u8; REM], exponent: u8, static_data: BoundedVec<u8, S>, today: u32) -> IccCert<K> {
         let m = self.bytes;
-        assert_envelope(m, FMT_ICC_CERT);
+        assert_envelope(m, [FMT_ICC_CERT]);
         assert_eq(m[ICC_HASH_ALG_OFFSET], HASH_ALG_SHA1, "ICC certificate hash algorithm is not SHA-1");
         assert_eq(m[ICC_PK_ALG_OFFSET], PK_ALG_RSA, "ICC key algorithm is not RSA");
         assert_eq(m[ICC_KEY_BYTE_LEN_OFFSET] as u32, K, "ICC key length does not match this circuit");
@@ -250,10 +251,11 @@ impl<let K: u32> IccKey<K> {
 }
 
 impl<let K: u32> RecoveredSdad<K> {
-    /// Book 2 table 17. The hashed span is fixed, so the dynamic data length is only bounds-checked.
-    pub fn verify<let T: u32>(self, format: u8, terminal_data: [u8; T]) -> AuthenticatedCard<K> {
+    /// Book 2 table 17, in any of `formats`. The hashed span is fixed, so the dynamic data length is
+    /// only bounds-checked.
+    pub fn verify<let F: u32, let T: u32>(self, formats: [u8; F], terminal_data: [u8; T]) -> AuthenticatedCard<K> {
         let m = self.bytes;
-        assert_envelope(m, format);
+        assert_envelope(m, formats);
         assert_eq(m[SDAD_HASH_ALG_OFFSET], HASH_ALG_SHA1, "signed data hash algorithm is not SHA-1");
         assert((m[DYNAMIC_DATA_BYTE_LEN_OFFSET] as u32) <= K - DYNAMIC_DATA_OFFSET - HASH_AND_TRAILER_BYTE_LEN, "ICC dynamic data overruns signed data");
         assert_hash(

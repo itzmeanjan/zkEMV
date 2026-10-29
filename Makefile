@@ -5,17 +5,28 @@ EMV_DIR      := emv
 CIRCUITS     := visa_fdda mastercard_dda
 ANDROID_DIR  ?= /data/local/tmp/zkemv
 ANDROID_OUT  := $(EMV_DIR)/target/android
+DATA_DIR     := resources/data
+APP_DIR      := app
+NATIVE_DIR   := $(APP_DIR)/native
+APP_ASSETS   := $(APP_DIR)/assets/generated
+APP_JNI      := $(APP_DIR)/android/app/src/main/jniLibs/arm64-v8a
+# Flutter's default ndkVersion, and the app's minSdk.
+NDK_VERSION  ?= 28.2.13676358
+ANDROID_API  ?= 24
+NDK_BIN      := $(ANDROID_HOME)/ndk/$(NDK_VERSION)/toolchains/llvm/prebuilt/linux-x86_64/bin
+# Cargo features of the app's native library, e.g. self-test (proves the synthetic taps under the test CA).
+NATIVE_FEATURES ?=
 
 .PHONY: help
 help: ## Prints help menu
-	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: test-circuits
 test-circuits: ## Runs the Noir circuit tests
 	cd $(CIRCUITS_DIR) && nargo test --workspace
 
 .PHONY: fixtures
-fixtures: ## Regenerates circuits/fixtures/ and each circuit's src/tests/vectors.nr from the seed
+fixtures: ## Regenerates circuits/fixtures/ and each tap's test vectors in its circuit's src/tests/ from the seed
 	cd $(EMV_DIR) && cargo test --release --test fixtures -- --ignored
 	cd $(CIRCUITS_DIR) && nargo fmt
 
@@ -51,6 +62,53 @@ bench-android: ## Builds the benchmark for arm64 Android in Docker, then runs it
 	adb push $(CIRCUITS_DIR)/target/*.json $(ANDROID_DIR)/circuits/target/
 	adb push $(CIRCUITS_DIR)/fixtures/*.json $(ANDROID_DIR)/circuits/fixtures/
 	adb shell 'cd $(ANDROID_DIR) && ZKEMV_CIRCUITS=$(ANDROID_DIR)/circuits ./prove_verify --bench --noplot'
+
+.PHONY: app-keys
+app-keys: ## Compiles the circuits, then writes the app's proving and verifying keys, CA table and BIN table to its assets
+	cd $(CIRCUITS_DIR) && nargo compile --workspace
+	cd $(NATIVE_DIR) && cargo run --locked --release --bin prepare-keys -- ../assets/generated/keys $(foreach c,$(CIRCUITS),../../$(CIRCUITS_DIR)/target/$(c).json)
+	cp $(DATA_DIR)/certificate-authority-public-keys.json $(DATA_DIR)/bin-table.json $(APP_ASSETS)/
+
+.PHONY: app-native
+app-native: ## Cross-compiles the app's native library for arm64 Android with the NDK
+	cd $(NATIVE_DIR) && \
+	CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$(NDK_BIN)/aarch64-linux-android$(ANDROID_API)-clang \
+	CC_aarch64_linux_android=$(NDK_BIN)/aarch64-linux-android$(ANDROID_API)-clang \
+	AR_aarch64_linux_android=$(NDK_BIN)/llvm-ar \
+	CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384" \
+	cargo build --locked --release --target aarch64-linux-android --lib --features "$(NATIVE_FEATURES)"
+	mkdir -p $(APP_JNI)
+	cp $(NATIVE_DIR)/target/aarch64-linux-android/release/libzkemv.so $(APP_JNI)/
+
+# The native library is built for arm64 only, and always in release: prove time is meaningless otherwise.
+.PHONY: app-debug
+app-debug: app-keys app-native ## Builds the app's debug APK
+	cd $(APP_DIR) && flutter build apk --debug --target-platform android-arm64
+
+.PHONY: app-release
+app-release: app-keys app-native ## Builds the app's release APK
+	cd $(APP_DIR) && flutter build apk --release --target-platform android-arm64
+
+# `adb install -r` replaces the APK and keeps the app's data (its wallet). Both build types are
+# signed with the debug key, so either can replace the other.
+.PHONY: app-install-debug
+app-install-debug: ## Installs the app's debug APK on the adb device, keeping its data
+	adb install -r $(APP_DIR)/build/app/outputs/flutter-apk/app-debug.apk
+
+.PHONY: app-install-release
+app-install-release: ## Installs the app's release APK on the adb device, keeping its data
+	adb install -r $(APP_DIR)/build/app/outputs/flutter-apk/app-release.apk
+
+.PHONY: app-reinstall-debug
+app-reinstall-debug: app-debug app-install-debug ## Rebuilds the debug APK and reinstalls it, keeping the app's data
+
+.PHONY: app-reinstall-release
+app-reinstall-release: app-release app-install-release ## Rebuilds the release APK and reinstalls it, keeping the app's data
+
+.PHONY: test-app-native
+test-app-native: ## Compiles the circuits, then tests the app's native library on the host
+	cd $(CIRCUITS_DIR) && nargo compile --workspace
+	cd $(NATIVE_DIR) && cargo test --locked --release --features self-test
 
 .PHONY: lint
 lint: lint-noir lint-rust ## Runs all lints to preserve quality of code

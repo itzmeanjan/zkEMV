@@ -60,28 +60,19 @@ pub(crate) fn input_map(abi: &Abi, challenge: &Fields, ca_modulus: &[u8], scope:
             ("issuer_pubkey_exponent", field(c.issuer_pubkey_exponent.into())),
             ("icc_pubkey_cert", bytes(&c.icc_pubkey_cert)),
             ("icc_pubkey_exponent", field(c.icc_pubkey_exponent.into())),
+            ("static_data_to_authenticate", static_data(abi, &c.static_data_to_authenticate)?),
             ("signed_dynamic_app_data", bytes(&c.signed_dynamic_app_data)),
             ("card_auth_related_data", bytes(&c.card_auth_related_data)),
         ]),
-        Card::MastercardDda(c) => {
-            let capacity = static_data_capacity(abi)?;
-            let static_data = &c.static_data_to_authenticate;
-            let len = u128::try_from(static_data.len())
-                .ok()
-                .filter(|_| static_data.len() <= capacity)
-                .ok_or(Error::Card("static data exceeds the circuit's bound"))?;
-            let mut storage = static_data.clone();
-            storage.resize(capacity, 0);
-            record([
-                ("issuer_pubkey_cert", bytes(&c.issuer_pubkey_cert)),
-                ("issuer_pubkey_remainder", bytes(&c.issuer_pubkey_remainder)),
-                ("issuer_pubkey_exponent", field(c.issuer_pubkey_exponent.into())),
-                ("icc_pubkey_cert", bytes(&c.icc_pubkey_cert)),
-                ("icc_pubkey_exponent", field(c.icc_pubkey_exponent.into())),
-                ("static_data_to_authenticate", record([("storage", bytes(&storage)), ("len", field(len))])),
-                ("signed_dynamic_app_data", bytes(&c.signed_dynamic_app_data)),
-            ])
-        }
+        Card::MastercardDda(c) => record([
+            ("issuer_pubkey_cert", bytes(&c.issuer_pubkey_cert)),
+            ("issuer_pubkey_remainder", bytes(&c.issuer_pubkey_remainder)),
+            ("issuer_pubkey_exponent", field(c.issuer_pubkey_exponent.into())),
+            ("icc_pubkey_cert", bytes(&c.icc_pubkey_cert)),
+            ("icc_pubkey_exponent", field(c.icc_pubkey_exponent.into())),
+            ("static_data_to_authenticate", static_data(abi, &c.static_data_to_authenticate)?),
+            ("signed_dynamic_app_data", bytes(&c.signed_dynamic_app_data)),
+        ]),
     };
     map.insert("card".to_owned(), card);
     Ok(map)
@@ -96,6 +87,19 @@ pub(crate) fn public_inputs(abi: &Abi, map: &InputMap) -> Result<Vec<FieldElemen
         flatten(value, &p.typ, &mut out).ok_or_else(|| unknown(abi))?;
     }
     Ok(out)
+}
+
+/// The circuit's `card.static_data_to_authenticate` bounded vector: `data`, zero-padded, and its
+/// length.
+fn static_data(abi: &Abi, data: &[u8]) -> Result<InputValue> {
+    let capacity = static_data_capacity(abi)?;
+    let len = u128::try_from(data.len())
+        .ok()
+        .filter(|_| data.len() <= capacity)
+        .ok_or(Error::Card("static data exceeds the circuit's bound"))?;
+    let mut storage = data.to_vec();
+    storage.resize(capacity, 0);
+    Ok(record([("storage", bytes(&storage)), ("len", field(len))]))
 }
 
 /// The storage length of the circuit's `card.static_data_to_authenticate` bounded vector.

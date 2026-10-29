@@ -33,6 +33,6 @@ fn main(trust_anchors: pub TrustAnchors, challenge: pub Challenge, card: Card, b
         .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, card.static_data_to_authenticate, challenge.today_yymm)
         .key()
         .recover_sdad(card.signed_dynamic_app_data)
-        .verify(FMT_SDAD_DDA, challenge.nonce)
+        .verify([FMT_SDAD_DDA], challenge.nonce)
         .reveal(trust_anchors.bin_root, challenge, bin_membership)
 }

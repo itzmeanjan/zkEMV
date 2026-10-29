@@ -13,8 +13,8 @@ use crate::{
     GENERATOR, Rng,
     layout::{
         AIP_TAG_LIST, AMOUNT_AUTHORISED_BYTE_LEN, BER_LONG_LENGTH_FLAG, DECIMAL_BASE, ENVELOPE_BYTE_LEN, FMT_ICC_CERT, FMT_ISSUER_CERT, FMT_SDAD_DDA,
-        HASH_ALG_SHA1, ISSUER_ID_BYTE_LEN, NIBBLE_PAD, NIBBLES_PER_BYTE, NONCE_BYTE_LEN, PAD_BYTE, PAN_BYTE_LEN, PK_ALG_RSA, RECORD_TEMPLATE_TAG, RSA_EXPONENT,
-        SERIAL_BYTE_LEN, STATUS_WORD_SUCCESS, VISA_FMT_SDAD_FDDA,
+        HASH_ALG_SHA1, ISSUER_ID_BYTE_LEN, LE_ANY, NIBBLE_PAD, NIBBLES_PER_BYTE, NONCE_BYTE_LEN, P2_RECORD_NUMBER, PAD_BYTE, PAN_BYTE_LEN, PK_ALG_RSA,
+        READ_RECORD_CLA, READ_RECORD_INS, RECORD_TEMPLATE_TAG, RSA_EXPONENT, SERIAL_BYTE_LEN, SFI_SHIFT, STATUS_WORD_SUCCESS, VISA_FMT_SDAD_FDDA,
     },
     merkle::TREE_DEPTH,
     random_bytes,
@@ -37,21 +37,33 @@ const FDDA_VERSION: u8 = 0x01;
 const CARD_RANDOM_BYTE_LEN: usize = 4;
 const CTQ_BYTE_LEN: usize = 2;
 const MC_STATIC_DATA_BYTE_LEN: usize = 131;
+const VISA_STATIC_DATA_BYTE_LEN: usize = 22;
 
-/// The ODA record from the PAN and AIP.
+/// The ODA record's template `70` value, from the PAN and AIP.
 type StaticRecord = fn(&[u8], &[u8], &mut Rng) -> Vec<u8>;
 
-/// One per circuit, as measured on real taps.
+/// The record that the AFL marks for offline data authentication.
+struct OdaRecord {
+    sfi: u8,
+    number: u8,
+    value: StaticRecord,
+}
+
+/// As measured on real taps.
 pub(crate) struct Kind {
     pub(crate) scheme: Scheme,
     pub(crate) package: &'static str,
+    /// `fixtures/<name>.json`.
+    pub(crate) name: &'static str,
+    /// `<package>/src/tests/<vectors>.nr`.
+    pub(crate) vectors: &'static str,
     aid: &'static str,
     /// Without the check digit. MII 9: not a payment card, so no real PAN can collide.
     pan: &'static str,
     sdad_format: u8,
     sdad_source: &'static str,
     aip: [u8; 2],
-    static_record: Option<StaticRecord>,
+    oda_record: Option<OdaRecord>,
     /// Of the PAN's 6-digit BIN. Countries are ISO 3166's user-assigned codes.
     bin: BinAttributes,
 }
@@ -64,16 +76,18 @@ struct BinAttributes {
 }
 
 /// New kinds go last: one generator feeds them all, in order.
-pub(crate) const KINDS: [Kind; 2] = [
+pub(crate) const KINDS: [Kind; 3] = [
     Kind {
         scheme: Scheme::VisaFdda,
         package: "visa_fdda",
+        name: "visa_fdda",
+        vectors: "vectors",
         aid: "A0000000031010",
         pan: "999990000000000",
         sdad_format: VISA_FMT_SDAD_FDDA,
         sdad_source: "GPO",
         aip: [0x20, 0x00],
-        static_record: None,
+        oda_record: None,
         bin: BinAttributes {
             country: 999,
             card_type: CardType::Credit,
@@ -84,17 +98,47 @@ pub(crate) const KINDS: [Kind; 2] = [
     Kind {
         scheme: Scheme::MastercardDda,
         package: "mastercard_dda",
+        name: "mastercard_dda",
+        vectors: "vectors",
         aid: "A0000000041010",
         pan: "999991000000000",
         sdad_format: FMT_SDAD_DDA,
         sdad_source: "INTERNAL AUTHENTICATE",
         aip: [0x19, 0x80],
-        static_record: Some(mc_static_record),
+        oda_record: Some(OdaRecord {
+            sfi: 2,
+            number: 1,
+            value: mc_static_record,
+        }),
         bin: BinAttributes {
             country: 998,
             card_type: CardType::Prepaid,
             brand: "MASTERCARD",
             commercial: true,
+        },
+    },
+    // How the other Visa corpus cards differ: the ICC certificate also signs an ODA record and
+    // the AIP, and the SDAD has Book 2's format 05.
+    Kind {
+        scheme: Scheme::VisaFdda,
+        package: "visa_fdda",
+        name: "visa_fdda_oda",
+        vectors: "vectors_oda",
+        aid: "A0000000031010",
+        pan: "999992000000000",
+        sdad_format: FMT_SDAD_DDA,
+        sdad_source: "GPO",
+        aip: [0x20, 0x00],
+        oda_record: Some(OdaRecord {
+            sfi: 3,
+            number: 3,
+            value: visa_static_record,
+        }),
+        bin: BinAttributes {
+            country: 997,
+            card_type: CardType::Debit,
+            brand: "VISA",
+            commercial: false,
         },
     },
 ];
@@ -151,8 +195,8 @@ struct Terminal {
 
 #[derive(Serialize)]
 struct Exchange {
-    label: &'static str,
-    command: &'static str,
+    label: String,
+    command: String,
     response: String,
     sw: String,
     ok: bool,
@@ -224,18 +268,24 @@ pub(crate) fn generate(ca_keys: &[u8]) -> Fixtures {
     let taps = KINDS.iter().map(|kind| tap(kind, &ca, &mut rng)).collect();
 
     let modulus = ca.modulus();
-    let keys = KINDS
-        .iter()
-        .map(|kind| CaKey {
+    let mut schemes: Vec<Scheme> = Vec::new();
+    for kind in &KINDS {
+        if !schemes.contains(&kind.scheme) {
+            schemes.push(kind.scheme);
+        }
+    }
+    let keys = schemes
+        .into_iter()
+        .map(|scheme| CaKey {
             scheme: "TEST",
-            rid: const_hex::encode_upper(kind.scheme.rid()),
+            rid: const_hex::encode_upper(scheme.rid()),
             index: const_hex::encode_upper([CA_INDEX]),
             exponent: const_hex::encode_upper([RSA_EXPONENT]),
             modulus_bits: CA_PUBKEY_BIT_LEN,
             modulus: const_hex::encode_upper(&modulus),
             checksum: const_hex::encode_upper(
                 Sha1::new()
-                    .chain_update(kind.scheme.rid())
+                    .chain_update(scheme.rid())
                     .chain_update([CA_INDEX])
                     .chain_update(&modulus)
                     .chain_update([RSA_EXPONENT])
@@ -273,31 +323,19 @@ fn tap(kind: &Kind, ca: &RsaKey, rng: &mut Rng) -> SyntheticTap {
     let serial = random_bytes(rng, SERIAL_BYTE_LEN);
     let (cert90, rem92) = certificate(ca, FMT_ISSUER_CERT, &issuer_id, &issuer.modulus(), &serial, &[]);
 
-    let mut afl = AflEntry {
-        sfi: 1,
-        first: 1,
-        last: 1,
-        oda_records: 0,
+    let (afl, exchanges, static_data) = match &kind.oda_record {
+        Some(oda) => oda.read(&pan_bcd, &kind.aip, rng),
+        None => (
+            AflEntry {
+                sfi: 1,
+                first: 1,
+                last: 1,
+                oda_records: 0,
+            },
+            Vec::new(),
+            Vec::new(),
+        ),
     };
-    let mut exchanges = Vec::new();
-    let mut static_data = Vec::new();
-    if let Some(static_record) = kind.static_record {
-        let record = static_record(&pan_bcd, &kind.aip, rng);
-        static_data = [&record[..], &kind.aip].concat();
-        afl = AflEntry {
-            sfi: 2,
-            first: 1,
-            last: 1,
-            oda_records: 1,
-        };
-        exchanges.push(Exchange {
-            label: "READ RECORD sfi=2 rec=1",
-            command: "00B2011400",
-            response: const_hex::encode_upper([tlv(&[RECORD_TEMPLATE_TAG], &record), STATUS_WORD_SUCCESS.to_vec()].concat()),
-            sw: const_hex::encode_upper(STATUS_WORD_SUCCESS),
-            ok: true,
-        });
-    }
 
     let serial = random_bytes(rng, SERIAL_BYTE_LEN);
     let (cert9f46, rem9f48) = certificate(&issuer, FMT_ICC_CERT, &pan_padded, &icc.modulus(), &serial, &static_data);
@@ -336,6 +374,9 @@ fn tap(kind: &Kind, ca: &RsaKey, rng: &mut Rng) -> SyntheticTap {
                 element("9F69", &card_auth, "GPO"),
                 element("9F36", &atc, "GPO"),
             ]);
+            if kind.oda_record.is_some() {
+                elements.push(element("9F4A", &AIP_TAG_LIST, "READ RECORD"));
+            }
             (atc, terminal_data)
         }
         Scheme::MastercardDda => {
@@ -350,7 +391,7 @@ fn tap(kind: &Kind, ca: &RsaKey, rng: &mut Rng) -> SyntheticTap {
         synthetic: true,
         notes: format!(
             "Synthetic {} tap from {GENERATOR} (seed {SEED}). Test CA key, fake PAN; no real card data.",
-            kind.package
+            kind.name
         ),
         selected_aid: kind.aid,
         aip: const_hex::encode_upper(kind.aip),
@@ -368,6 +409,28 @@ fn tap(kind: &Kind, ca: &RsaKey, rng: &mut Rng) -> SyntheticTap {
         pan,
         icc_modulus: icc.modulus(),
         static_data,
+    }
+}
+
+impl OdaRecord {
+    /// The AFL entry that marks the record, its READ RECORD, and the static data: its template
+    /// `70` value, then the AIP.
+    fn read(&self, pan_bcd: &[u8], aip: &[u8], rng: &mut Rng) -> (AflEntry, Vec<Exchange>, Vec<u8>) {
+        let record = (self.value)(pan_bcd, aip, rng);
+        let afl = AflEntry {
+            sfi: self.sfi,
+            first: self.number,
+            last: self.number,
+            oda_records: 1,
+        };
+        let exchange = Exchange {
+            label: format!("READ RECORD sfi={} rec={}", self.sfi, self.number),
+            command: const_hex::encode_upper([READ_RECORD_CLA, READ_RECORD_INS, self.number, self.sfi << SFI_SHIFT | P2_RECORD_NUMBER, LE_ANY]),
+            response: const_hex::encode_upper([tlv(&[RECORD_TEMPLATE_TAG], &record), STATUS_WORD_SUCCESS.to_vec()].concat()),
+            sw: const_hex::encode_upper(STATUS_WORD_SUCCESS),
+            ok: true,
+        };
+        (afl, vec![exchange], [&record[..], aip].concat())
     }
 }
 
@@ -418,6 +481,19 @@ fn mc_static_record(pan_bcd: &[u8], aip: &[u8], rng: &mut Rng) -> Vec<u8> {
     ];
     let value: Vec<u8> = fields.iter().flat_map(|(tag, value)| tlv(tag, value)).collect();
     assert_eq!(value.len() + aip.len(), MC_STATIC_DATA_BYTE_LEN);
+    value
+}
+
+/// The ODA record, in the tag order and lengths of the Visa corpus card with static data. On it,
+/// the PAN and expiry date are signed.
+fn visa_static_record(pan_bcd: &[u8], aip: &[u8], _: &mut Rng) -> Vec<u8> {
+    let fields: Vec<(&[u8], Vec<u8>)> = vec![
+        (&[0x5F, 0x24], vec![0x49, 0x12, 0x31]), // expiry date YYMMDD
+        (&[0x5A], pan_bcd.to_vec()),
+        (&[0x9F, 0x4A], AIP_TAG_LIST.to_vec()),
+    ];
+    let value: Vec<u8> = fields.iter().flat_map(|(tag, value)| tlv(tag, value)).collect();
+    assert_eq!(value.len() + aip.len(), VISA_STATIC_DATA_BYTE_LEN);
     value
 }
 

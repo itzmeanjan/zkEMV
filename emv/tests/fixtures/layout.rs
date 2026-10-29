@@ -33,3 +33,10 @@ pub(crate) const RECORD_TEMPLATE_TAG: u8 = 0x70;
 pub(crate) const BER_LONG_LENGTH_FLAG: u8 = 0x80;
 pub(crate) const STATUS_WORD_SUCCESS: [u8; 2] = [0x90, 0x00];
 pub(crate) const AIP_TAG_LIST: [u8; 1] = [0x82];
+
+// READ RECORD, Book 3 6.5.11: P1 is the record number, P2 the SFI and "P1 is a record number".
+pub(crate) const READ_RECORD_CLA: u8 = 0x00;
+pub(crate) const READ_RECORD_INS: u8 = 0xB2;
+pub(crate) const SFI_SHIFT: u8 = 3;
+pub(crate) const P2_RECORD_NUMBER: u8 = 0x04;
+pub(crate) const LE_ANY: u8 = 0x00;

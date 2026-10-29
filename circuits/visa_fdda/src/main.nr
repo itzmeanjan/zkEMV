@@ -2,7 +2,7 @@
 
 mod tests;
 
-use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, concat, Revealed, Transaction, TrustAnchors, VISA_FMT_SDAD_FDDA};
+use emv::{BinMembership, BITS_PER_BYTE, CA_PUBKEY_BYTE_LEN, CaKey, Challenge, concat, FMT_SDAD_DDA, Revealed, Transaction, TrustAnchors, VISA_FMT_SDAD_FDDA};
 
 global ISSUER_PUBKEY_BIT_LEN: u32 = 1408;
 global ISSUER_PUBKEY_BYTE_LEN: u32 = ISSUER_PUBKEY_BIT_LEN / BITS_PER_BYTE;
@@ -11,7 +11,11 @@ global ICC_PUBKEY_BIT_LEN: u32 = 1024;
 global ICC_PUBKEY_BYTE_LEN: u32 = ICC_PUBKEY_BIT_LEN / BITS_PER_BYTE;
 
 global CARD_AUTH_RELATED_DATA_BYTE_LEN: u32 = 7;
-global STATIC_DATA_MAX_BYTE_LEN: u32 = 0;
+/// EMV gives the static data's length as variable (Book 2); cards with more are rejected.
+global STATIC_DATA_MAX_BYTE_LEN: u32 = 256;
+
+/// Visa cards sign with format 95 or Book 2's 05, in the same layout.
+global SDAD_FORMATS: [u8; 2] = [VISA_FMT_SDAD_FDDA, FMT_SDAD_DDA];
 
 /// The card's data from the tap.
 pub struct Card {
@@ -19,6 +23,7 @@ pub struct Card {
     pub issuer_pubkey_exponent: u8,
     pub icc_pubkey_cert: [u8; ISSUER_PUBKEY_BYTE_LEN],
     pub icc_pubkey_exponent: u8,
+    pub static_data_to_authenticate: BoundedVec<u8, STATIC_DATA_MAX_BYTE_LEN>,
     pub signed_dynamic_app_data: [u8; ICC_PUBKEY_BYTE_LEN],
     pub card_auth_related_data: [u8; CARD_AUTH_RELATED_DATA_BYTE_LEN],
 }
@@ -37,9 +42,9 @@ fn main(trust_anchors: pub TrustAnchors, challenge: pub Challenge, transaction: 
         .verify::<ISSUER_PUBKEY_BYTE_LEN, _>([], card.issuer_pubkey_exponent, challenge.today_yymm)
         .key()
         .recover_icc_cert(card.icc_pubkey_cert)
-        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, BoundedVec::<u8, STATIC_DATA_MAX_BYTE_LEN>::new(), challenge.today_yymm)
+        .verify::<ICC_PUBKEY_BYTE_LEN, _, _>([], card.icc_pubkey_exponent, card.static_data_to_authenticate, challenge.today_yymm)
         .key()
         .recover_sdad(card.signed_dynamic_app_data)
-        .verify(VISA_FMT_SDAD_FDDA, terminal_data)
+        .verify(SDAD_FORMATS, terminal_data)
         .reveal(trust_anchors.bin_root, challenge, bin_membership)
 }

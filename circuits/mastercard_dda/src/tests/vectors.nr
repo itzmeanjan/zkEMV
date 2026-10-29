@@ -31,7 +31,7 @@ pub global TRUST_ANCHORS: TrustAnchors = TrustAnchors {
         0xba6828d4394fbf482f438c43cdac23,
         0xce62deaea97e0e01,
     ],
-    bin_root: 0x2925e29a2f0b7d32e4157f247b07087d71d891d9b92fed3265f6bd494eb8cf09,
+    bin_root: 0x11c1477cc885ff6570fb6bcf2387db47fa5031a31dbd303496b664779d06b8f6,
 };
 
 pub global CHALLENGE: Challenge = Challenge { nonce: [0xd2, 0xd, 0xf9, 0xb7], today_yymm: 0xa31, scope: 0x5c09e, disclosure: 0xf };
@@ -102,7 +102,7 @@ pub global BIN_MEMBERSHIP: BinMembership = BinMembership {
     slot: 0x1,
     siblings: [
         0x2027e7e8d41bbbbfe8d40c7980,
-        0xb63a53787021a4a962a452c2921b3663aff1ffd8d5510540f8e659e782956f1,
+        0xe64d415a0cf1c110818673b2d1f76d8772cfa94f8651552faeaddd5621bb564,
         0xe34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
         0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
         0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,

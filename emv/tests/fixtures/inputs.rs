@@ -85,31 +85,23 @@ impl Inputs {
             ("icc_pubkey_exponent", int(tag(&tap, "9F47")[0])),
         ];
         let sdad = ("signed_dynamic_app_data", bytes(&tag(&tap, "9F4B")));
+        assert!(
+            synthetic.static_data.len() <= static_data_capacity,
+            "{}: static data exceeds the circuit's bound",
+            kind.name
+        );
+        let mut storage: Vec<BigUint> = synthetic.static_data.iter().map(|&b| BigUint::from(b)).collect();
+        storage.resize(static_data_capacity, BigUint::ZERO);
+        let static_data = ("static_data_to_authenticate", Value::BoundedVec(storage, synthetic.static_data.len()));
         let card = match kind.scheme {
             Scheme::VisaFdda => {
                 params.push((
                     "transaction",
                     Value::Struct("Transaction", vec![("amount_authorised", bytes(&amount)), ("currency_code", bytes(&currency))]),
                 ));
-                [&issuer[..], &icc, &[sdad, ("card_auth_related_data", bytes(&tag(&tap, "9F69")))]].concat()
+                [&issuer[..], &icc, &[static_data, sdad, ("card_auth_related_data", bytes(&tag(&tap, "9F69")))]].concat()
             }
-            Scheme::MastercardDda => {
-                let static_data = &synthetic.static_data;
-                assert!(
-                    static_data.len() <= static_data_capacity,
-                    "{}: static data exceeds the circuit's bound",
-                    kind.package
-                );
-                let mut storage: Vec<BigUint> = static_data.iter().map(|&b| BigUint::from(b)).collect();
-                storage.resize(static_data_capacity, BigUint::ZERO);
-                [
-                    &issuer[..],
-                    &[("issuer_pubkey_remainder", bytes(&tag(&tap, "92")))],
-                    &icc,
-                    &[("static_data_to_authenticate", Value::BoundedVec(storage, static_data.len())), sdad],
-                ]
-                .concat()
-            }
+            Scheme::MastercardDda => [&issuer[..], &[("issuer_pubkey_remainder", bytes(&tag(&tap, "92")))], &icc, &[static_data, sdad]].concat(),
         };
         params.push(("card", Value::Struct("Card", card)));
 

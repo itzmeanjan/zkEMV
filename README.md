@@ -61,6 +61,8 @@ The verifier picks the table it trusts with pinned root; the prover needs that e
 | `visa_fdda` | Visa fDDA | 1984 / 1408 / 1024 | `9F37 ‖ 9F02 ‖ 5F2A ‖ 9F69`[^9f69] |
 | `mastercard_dda` | Mastercard DDA | 1984 / 1920 / 1152 | `9F37` |
 
+Both circuits take up to 256 bytes of static data to authenticate, which the ICC PK Certificate also signs; it may be empty. Visa cards sign `9F4B` in format `95` or `05`, and `visa_fdda` accepts either.
+
 ## Prerequisites
 
 | Tool | Version | Needed for |
@@ -79,7 +81,7 @@ make test-circuits   # Noir circuit tests
 make test-e2e        # compiles the circuits, then proves and verifies each synthetic card tap data
 ```
 
-Generated files are committed: the synthetic taps in `circuits/fixtures/`, and each circuit's `src/tests/vectors.nr`.
+Generated files are committed: the synthetic taps in `circuits/fixtures/`, and each tap's test vectors in its circuit's `src/tests/`.
 `emv/tests/fixtures` generates them from a fixed seed. To regenerate them:
 
 ```bash

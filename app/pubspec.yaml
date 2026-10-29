@@ -1,0 +1,26 @@
+name: zkcard
+description: "Prove in zero knowledge that you hold a genuine EMV contactless card"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: 2.2.0
+  nfc_manager: 4.2.1
+  path_provider: 2.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true
+  # Written by `make app-keys`.
+  assets:
+    - assets/generated/
+    - assets/generated/keys/

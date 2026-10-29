@@ -1,5 +1,5 @@
 //! Writes everything generated from the synthetic taps: the circuits' fixtures and each
-//! circuit's test vectors. Run by `make fixtures`.
+//! tap's test vectors in its circuit. Run by `make fixtures`.
 
 mod inputs;
 mod layout;
@@ -34,7 +34,7 @@ fn generate() -> Vec<(PathBuf, String)> {
     let mut files: Vec<(PathBuf, String)> = KINDS
         .iter()
         .zip(&generated.taps)
-        .map(|(kind, tap)| (fixtures.join(format!("{}.json", kind.package)), tap.json.clone()))
+        .map(|(kind, tap)| (fixtures.join(format!("{}.json", kind.name)), tap.json.clone()))
         .collect();
     files.push((fixtures.join("test-ca-keys.json"), generated.ca_table.clone()));
     files.push((fixtures.join("bin-table.json"), generated.bin_table.clone()));
@@ -43,7 +43,7 @@ fn generate() -> Vec<(PathBuf, String)> {
         let package = circuits.join(kind.package);
         let static_data_capacity = circuit_global(&package, "STATIC_DATA_MAX_BYTE_LEN");
         let inputs = Inputs::new(kind, tap, &generated.ca_modulus, &generated.bin_table, static_data_capacity);
-        files.push((package.join("src/tests/vectors.nr"), inputs.to_noir()));
+        files.push((package.join(format!("src/tests/{}.nr", kind.vectors)), inputs.to_noir()));
     }
     files
 }

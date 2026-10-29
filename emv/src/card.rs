@@ -21,6 +21,9 @@ pub struct VisaFdda {
     pub icc_pubkey_cert: Vec<u8>,
     /// `9F47`, from READ RECORD. Must be 3.
     pub icc_pubkey_exponent: u8,
+    /// Static data to be authenticated, as for [`MastercardDda`]. Empty on cards whose AFL marks
+    /// no record for offline data authentication and that have no `9F4A`.
+    pub static_data_to_authenticate: Vec<u8>,
     /// `9F4B`, from the GPO response. As long as the ICC modulus.
     pub signed_dynamic_app_data: Vec<u8>,
     /// `9F69`, from the GPO response. The circuit's `CARD_AUTH_RELATED_DATA_BYTE_LEN` bytes.
