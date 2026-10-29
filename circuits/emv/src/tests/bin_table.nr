@@ -30,7 +30,7 @@ fn with_paths() -> (BinMembership, BinMembership, Field) {
 global PAN_IN_CHILD: [u8; 10] = [0x45, 0x71, 0x00, 0x40, 0x12, 0x34, 0x56, 0x78, 0xFF, 0xFF];
 global ALL: u8 = 0xF;
 
-/// `emv/src/bin_table/mod.rs`'s `leaf_layout` and `scripts/bin_tree.py` give the same values.
+/// `emv/src/bin_table/mod.rs`'s `leaf_layout` and `root_known_answer` give the same values.
 #[test]
 fn known_answer() {
     let m = BinMembership { low: 1, high: 999999999999, country: 999, card_type: 3, brand: 7, commercial: true, slot: 5, siblings: empty_roots() };

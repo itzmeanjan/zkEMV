@@ -1,7 +1,7 @@
 {
   "sources": [
     {
-      "url": "scripts/gen_synthetic.py",
+      "url": "emv/tests/fixtures",
       "retrieved": null
     }
   ],
