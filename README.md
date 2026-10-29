@@ -79,7 +79,7 @@ make test-circuits   # Noir circuit tests
 make test-e2e        # compiles the circuits, then proves and verifies each synthetic card tap data
 ```
 
-Generated files are committed: the synthetic taps in `circuits/fixtures/`, and each circuit's `Prover.toml` and `src/tests/vectors.nr`.
+Generated files are committed: the synthetic taps in `circuits/fixtures/`, and each circuit's `src/tests/vectors.nr`.
 `emv/tests/fixtures` generates them from a fixed seed. To regenerate them:
 
 ```bash

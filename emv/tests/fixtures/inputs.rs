@@ -1,4 +1,4 @@
-//! A circuit's inputs from its synthetic tap, as `Prover.toml` and as `src/tests/vectors.nr`.
+//! A circuit's inputs from its synthetic tap, as its `src/tests/vectors.nr`.
 
 use emv::{BinTable, PAN_PREFIX_DIGIT_COUNT, Scheme};
 use num_bigint::BigUint;
@@ -20,8 +20,6 @@ const DISCLOSE_BIT_LEN: u32 = 4;
 const DISCLOSE_ALL: u32 = (1 << DISCLOSE_BIT_LEN) - 1;
 /// The circuits' `LIMB_BIT_LEN`.
 const LIMB_BIT_LEN: usize = 120;
-/// TOML integers are signed 64-bit; larger ones go in strings.
-const TOML_INTEGER_LIMIT: u64 = 1 << 63;
 
 #[derive(Clone)]
 enum Value {
@@ -139,15 +137,6 @@ impl Inputs {
         }
     }
 
-    /// A table per parameter; a struct or bounded vector inside one is a subtable.
-    pub(crate) fn to_toml(&self) -> String {
-        let mut lines = Vec::new();
-        for (name, value) in &self.params {
-            toml_table(name, &value.fields(), &mut lines);
-        }
-        lines.join("\n").trim_start_matches('\n').to_owned() + "\n"
-    }
-
     /// A global per parameter, named after it. `nargo fmt` lays it out.
     pub(crate) fn to_noir(&self) -> String {
         let mut emv_types: Vec<&str> = self
@@ -180,14 +169,6 @@ impl Inputs {
 }
 
 impl Value {
-    fn fields(&self) -> Vec<(&'static str, Self)> {
-        match self {
-            Self::Struct(_, fields) => fields.clone(),
-            Self::BoundedVec(storage, len) => vec![("storage", Self::Ints(storage.clone())), ("len", Self::Int((*len).into()))],
-            _ => unreachable!("only a struct or bounded vector has fields"),
-        }
-    }
-
     fn noir(&self) -> String {
         match self {
             Self::Bool(b) => b.to_string(),
@@ -199,32 +180,6 @@ impl Value {
                 format!("{ty} {{ {} }}", fields.join(", "))
             }
         }
-    }
-
-    fn toml(&self) -> String {
-        match self {
-            Self::Bool(b) => b.to_string(),
-            Self::Int(n) => toml_int(n),
-            Self::Ints(v) => format!("[{}]", v.iter().map(toml_int).collect::<Vec<_>>().join(", ")),
-            Self::BoundedVec(..) | Self::Struct(..) => unreachable!("a subtable has no inline value"),
-        }
-    }
-}
-
-fn toml_table(path: &str, fields: &[(&'static str, Value)], lines: &mut Vec<String>) {
-    let is_table = |v: &Value| matches!(v, Value::Struct(..) | Value::BoundedVec(..));
-    lines.push(format!("\n[{path}]"));
-    lines.extend(fields.iter().filter(|(_, v)| !is_table(v)).map(|(name, v)| format!("{name} = {}", v.toml())));
-    for (name, v) in fields.iter().filter(|(_, v)| is_table(v)) {
-        toml_table(&format!("{path}.{name}"), &v.fields(), lines);
-    }
-}
-
-fn toml_int(n: &BigUint) -> String {
-    if *n >= BigUint::from(TOML_INTEGER_LIMIT) {
-        format!("\"{n}\"")
-    } else {
-        n.to_string()
     }
 }
 

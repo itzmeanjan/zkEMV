@@ -1,5 +1,5 @@
 //! Writes everything generated from the synthetic taps: `circuits/fixtures/`, and each circuit's
-//! `Prover.toml` and `src/tests/vectors.nr`. Run by `make fixtures`.
+//! `src/tests/vectors.nr`. Run by `make fixtures`.
 
 mod inputs;
 mod layout;
@@ -43,7 +43,6 @@ fn generate() -> Vec<(PathBuf, String)> {
         let package = circuits.join(kind.package);
         let static_data_capacity = circuit_global(&package, "STATIC_DATA_MAX_BYTE_LEN");
         let inputs = Inputs::new(kind, tap, &generated.ca_modulus, &generated.bin_table, static_data_capacity);
-        files.push((package.join("Prover.toml"), inputs.to_toml()));
         files.push((package.join("src/tests/vectors.nr"), inputs.to_noir()));
     }
     files

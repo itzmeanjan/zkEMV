@@ -15,7 +15,7 @@ test-circuits: ## Runs the Noir circuit tests
 	cd $(CIRCUITS_DIR) && nargo test --workspace
 
 .PHONY: fixtures
-fixtures: ## Regenerates circuits/fixtures/ and each circuit's Prover.toml and src/tests/vectors.nr from the seed
+fixtures: ## Regenerates circuits/fixtures/ and each circuit's src/tests/vectors.nr from the seed
 	cd $(EMV_DIR) && cargo test --release --test fixtures -- --ignored
 	cd $(CIRCUITS_DIR) && nargo fmt
 
