@@ -68,8 +68,6 @@ The verifier picks the table it trusts with pinned root; the prover needs that e
 | GNU Make[^make] | any | The recipes below |
 | Nargo[^nargo] | 1.0.0-beta.26 | Compiling and testing the circuits |
 | Rust[^rustup] | 1.98.0, minimum 1.90 | The `emv` crate; rustup installs the version pinned in `emv/rust-toolchain.toml` |
-| Python[^python] | 3.14 | Regenerating fixtures and circuit inputs |
-| black[^black], mypy[^mypy] | As in `requirements.txt` | Linting and formatting Python sources |
 | cargo-criterion[^cargo-criterion] | 1.1.0 | Benchmarking Rust library crate |
 | provekit-cli[^provekit-cli] | 1.0.2 | Printing circuit statistics (`make circuit-stats`) |
 | Docker[^docker], adb[^adb] | any | Benchmarking on an arm64 Android device |
@@ -81,11 +79,11 @@ make test-circuits   # Noir circuit tests
 make test-e2e        # compiles the circuits, then proves and verifies each synthetic card tap data
 ```
 
-Generated files are committed. To regenerate them:
+Generated files are committed: the synthetic taps in `circuits/fixtures/`, and each circuit's `Prover.toml` and `src/tests/vectors.nr`.
+`emv/tests/fixtures` generates them from a fixed seed. To regenerate them:
 
 ```bash
-python3 circuits/scripts/gen_synthetic.py       # rewrites circuits/fixtures/ (deterministic)
-python3 circuits/scripts/gen_circuit_inputs.py  # verifies each fixture natively, writes each circuit's Prover.toml and src/tests/vectors.nr
+make fixtures
 ```
 
 ## Examples
@@ -275,9 +273,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [^make]: GNU Make. <https://www.gnu.org/software/make/>
 [^nargo]: Nargo, the Noir toolchain. <https://noir-lang.org/docs>
 [^rustup]: rustup, the Rust toolchain installer. <https://rustup.rs>
-[^python]: Python. <https://www.python.org>
-[^black]: Black, the Python code formatter. <https://github.com/psf/black>
-[^mypy]: mypy, a static type checker for Python. <https://mypy-lang.org>
 [^cargo-criterion]: cargo-criterion. <https://github.com/bheisler/cargo-criterion>
 [^provekit-cli]: provekit-cli, ProveKit's command-line tool. <https://crates.io/crates/provekit-cli>
 [^docker]: Docker. <https://www.docker.com>

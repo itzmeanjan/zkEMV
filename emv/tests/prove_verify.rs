@@ -143,7 +143,7 @@ fn forged_nullifier_is_rejected() {
     assert!(matches!(err, Error::ProveKit(_)), "{err}");
 }
 
-/// Both synthetic certificates expire in December 2049 (`gen_synthetic.py`'s
+/// Both synthetic certificates expire in December 2049 (`fixtures/synthetic.rs`'s
 /// `CERT_EXPIRY_MMYY`).
 #[test]
 fn certificates_are_valid_through_their_expiry_month() {
@@ -336,7 +336,7 @@ fn disclosing(scheme: Scheme, disclosure: Disclosure) -> Challenge<Issued> {
     issue(scheme, Scope::Verifier, today()).disclose(bins().root(), disclosure)
 }
 
-/// `gen_synthetic.py`'s `BIN_ATTRIBUTES`; brand codes index the fixture's brand list.
+/// `fixtures/synthetic.rs`'s `KINDS`; brand codes index the fixture's brand list.
 fn synthetic_attributes(scheme: Scheme) -> (Disclosed, &'static str) {
     match scheme {
         Scheme::VisaFdda => (

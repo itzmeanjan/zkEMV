@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(leaf(&range(), 7), Fr::from(expected));
     }
 
-    /// `circuits/emv/src/tests/bin_table.nr` and `scripts/bin_tree.py` give the same root.
+    /// `circuits/emv/src/tests/bin_table.nr` gives the same root.
     #[test]
     fn root_known_answer() {
         let mut leaves = vec![Fr::zero(); 5];

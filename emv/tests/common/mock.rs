@@ -34,7 +34,7 @@ pub(crate) fn unhex(v: &Value) -> Vec<u8> {
 }
 
 /// The test CA key from `fixtures/test-ca-keys.json`. Its private key is public, via
-/// `gen_synthetic.py`'s seed, so only tests may trust it.
+/// `fixtures/synthetic.rs`'s seed, so only tests may trust it.
 pub(crate) fn test_ca_table() -> CaTable {
     let path = format!("{}/fixtures/test-ca-keys.json", circuits());
     CaTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
@@ -80,7 +80,7 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
     (ca, card)
 }
 
-/// `verify_emv_reference.static_data_to_authenticate`, for records shorter than 256 bytes.
+/// Book 3 10.3's static data to authenticate, for records shorter than 256 bytes.
 fn static_data(doc: &Value, tag_list: &[u8], aip: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     for entry in doc["afl"].as_array().unwrap() {
