@@ -28,7 +28,7 @@ fn repository() -> PathBuf {
 fn generate() -> Vec<(PathBuf, String)> {
     let circuits = repository().join("circuits");
     let fixtures = circuits.join("fixtures");
-    let ca_keys = fs::read(repository().join("data/certificate-authority-public-keys.json")).unwrap();
+    let ca_keys = fs::read(repository().join("resources/data/certificate-authority-public-keys.json")).unwrap();
     let generated = synthetic::generate(&ca_keys);
 
     let mut files: Vec<(PathBuf, String)> = KINDS

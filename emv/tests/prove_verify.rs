@@ -197,7 +197,7 @@ fn altered_challenge_is_rejected() {
 
 /// Real keys from the repository's CA key table, which the synthetic taps don't chain to.
 fn data_table() -> CaTable {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../data/certificate-authority-public-keys.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/data/certificate-authority-public-keys.json");
     CaTable::from_json(&std::fs::read(path).unwrap()).unwrap()
 }
 

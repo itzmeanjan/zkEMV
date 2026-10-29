@@ -27,7 +27,7 @@ Across the chain, it checks that the issuer identifier matches the PAN[^pan] pre
 - **Output:** the disclosed BIN attributes, and a nullifier, the Poseidon2[^poseidon2] hash of the scope and the card's ICC public key: the same for every proof of one card in one verifier scope, unlinkable across scopes.
 - **Not checked:** CA key and issuer certificate revocation, contents of the signed static data. The `emv` crate checks CA key expiry, outside the circuit.
 
-`data/certificate-authority-public-keys.json` holds scheme CA public keys, built from community-maintained lists[^emv-bertlv][^eftlab-ca-keys], keeping only keys whose published checksum verifies; not authoritative.
+`resources/data/certificate-authority-public-keys.json` holds scheme CA public keys, built from community-maintained lists[^emv-bertlv][^eftlab-ca-keys], keeping only keys whose published checksum verifies; not authoritative.
 The verifier picks the CA keys it trusts; a production deployment of verifier should trust only the official distribution of CA keys.
 
 The scope sets what a verifier can recognise:
@@ -53,7 +53,7 @@ When none is asked for, the BIN table is not checked against.
 | Brand | Its position in the table's brand list, counting from 1; the table names it, e.g. `VISA` |
 | Commercial | Whether the card is issued to a business entity |
 
-`data/bin-table.json` is such a table, built from a community-maintained BIN list[^binlist-data]; not authoritative.
+`resources/data/bin-table.json` is such a table, built from a community-maintained BIN list[^binlist-data]; not authoritative.
 The verifier picks the table it trusts with pinned root; the prover needs that exact table to get a Merkle path to its BIN range.
 
 | Circuit | Scheme | Key widths in bits (CA / issuer / ICC) | Dynamic signature covers |
@@ -247,8 +247,8 @@ iOS lets only approved apps communicate with payment cards over NFC, so zkEMV cu
 Licensed under either of Apache License 2.0 (`LICENSE-APACHE`) or MIT license (`LICENSE-MIT`), at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this work, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
-`data/bin-table.json` is derived from binlist-data[^binlist-data], licensed under CC BY 4.0[^cc-by-4], and reformatted into PAN prefix ranges.
-`data/certificate-authority-public-keys.json` is compiled from emv-bertlv[^emv-bertlv] and EFTlab's list of CA public keys[^eftlab-ca-keys].
+`resources/data/bin-table.json` is derived from binlist-data[^binlist-data], licensed under CC BY 4.0[^cc-by-4], and reformatted into PAN prefix ranges.
+`resources/data/certificate-authority-public-keys.json` is compiled from emv-bertlv[^emv-bertlv] and EFTlab's list of CA public keys[^eftlab-ca-keys].
 
 ## References
 

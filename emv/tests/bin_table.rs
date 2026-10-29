@@ -173,7 +173,7 @@ fn changes_keep_ranges_apart() {
 
 #[test]
 fn data_table_loads_and_matches_its_root() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../data/bin-table.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/data/bin-table.json");
     let json = std::fs::read(path).unwrap();
     let t = BinTable::from_json(&json).unwrap();
     let v: Value = serde_json::from_slice(&json).unwrap();
