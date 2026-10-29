@@ -30,8 +30,8 @@ struct Entry {
 }
 
 impl CaTable {
-    /// Parses a table in the format of `data/certificate-authority-public-keys.json` and
-    /// checks each key's checksum. Every key in it becomes trusted.
+    /// Parses a JSON table of CA public keys, a `keys` array, and checks each key's
+    /// checksum. Every key in it becomes trusted.
     ///
     /// # Errors
     ///

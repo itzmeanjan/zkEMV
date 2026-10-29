@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(hex(hash(&full)), "0f1badcd0d52ced816fb6e6826fdf66ada038135d53cbb993f320ca6529223cd");
     }
 
-    /// `circuits/emv/src/tests/nullifier.nr` checks the same value.
+    /// The circuits' nullifier test checks the same value.
     #[test]
     fn nullifier_known_answer() {
         let modulus: Vec<u8> = (1..=128).collect();

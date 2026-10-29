@@ -1,4 +1,4 @@
-//! EMV sizes and the Book 2 recovered-data values, named as in `circuits/emv/src/card_chain.nr`.
+//! EMV sizes and the Book 2 recovered-data values, named as in the circuits.
 
 pub(crate) const BITS_PER_BYTE: usize = 8;
 pub(crate) const NIBBLES_PER_BYTE: usize = 2;

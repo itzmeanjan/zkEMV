@@ -23,7 +23,7 @@ const MAX_COUNTRY_CODE: u64 = pow10(COUNTRY_CODE_DIGIT_COUNT) - 1;
 const CARD_TYPE_COUNT: u64 = 3;
 const SLOT_COUNT: usize = 1 << TREE_DEPTH;
 
-/// Leaf field widths, as in `circuits/emv/src/bin_table.nr`.
+/// Leaf field widths, as in the circuits.
 const PAN_PREFIX_BIT_LEN: u32 = u64::BITS - MAX_PAN_PREFIX.leading_zeros();
 const COUNTRY_CODE_BIT_LEN: u32 = u64::BITS - MAX_COUNTRY_CODE.leading_zeros();
 const CARD_TYPE_BIT_LEN: u32 = u64::BITS - CARD_TYPE_COUNT.leading_zeros();
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(leaf(&range(), 7), Fr::from(expected));
     }
 
-    /// `circuits/emv/src/tests/bin_table.nr` gives the same root.
+    /// The circuits' BIN table test gives the same root.
     #[test]
     fn root_known_answer() {
         let mut leaves = vec![Fr::zero(); 5];

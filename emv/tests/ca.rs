@@ -104,7 +104,7 @@ fn lookup_takes_only_the_circuits_width_and_exponent_3() {
 
 #[test]
 fn keys_are_valid_through_their_expiry_month() {
-    // Both expire 2028-12-31 in `data/`.
+    // Both expire 2028-12-31 in the repository's CA key table.
     let data = data_table();
     for (scheme, index) in [(Scheme::VisaFdda, 0x09), (Scheme::MastercardDda, 0x06)] {
         data.lookup(&challenge(scheme, 2028, 12), scheme.rid(), index).unwrap();

@@ -1,5 +1,5 @@
 //! Proves, in zero knowledge, that a genuine EMV contactless card signed a challenge nonce,
-//! using the Noir circuits in this repository's `circuits/` and the ProveKit proving system.
+//! using this repository's Noir circuits and the ProveKit proving system.
 //!
 //! ```text
 //! verifier (origin)                            prover (holds the card)

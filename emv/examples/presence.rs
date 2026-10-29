@@ -1,7 +1,8 @@
 //! Use case 1, card presence: a genuine card was tapped just now, and nothing links one
 //! visit to another. For anti-bot friction or a step-up check.
 //!
-//! `cargo run --release --example presence`, after `nargo compile --workspace` in `circuits/`.
+//! `cargo run --release --example presence`, after compiling the circuits with
+//! `nargo compile --workspace`.
 
 mod common;
 

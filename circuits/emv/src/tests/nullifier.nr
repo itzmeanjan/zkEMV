@@ -16,7 +16,7 @@ fn lanes_are_31_byte_big_endian_chunks() {
     assert_eq(nullifier(counting::<33>(), 7), Poseidon2::hash([DOMAIN_SEPARATOR, 7, lane1, lane2, 0, 0, 0, 0], 8));
 }
 
-/// `emv/src/nullifier.rs`'s `nullifier_known_answer` checks the same value on the host.
+/// The `emv` crate's `nullifier_known_answer` checks the same value on the host.
 #[test]
 fn known_answer() {
     assert_eq(nullifier(counting::<128>(), 7), 0x10bea8dfa6f518e8c2f41fd4bec8efbbb0932081fb73a04a9a6b7d71aa0c48ba);

@@ -18,8 +18,8 @@ use crate::{
 
 /// Builds the key pair for a compiled circuit.
 ///
-/// `compiled_circuit` is the JSON that `nargo compile` (nargo 1.0.0-beta.26) writes to
-/// `target/<pkg>.json` for the `visa_fdda` or `mastercard_dda` package. The scheme is detected from the circuit's parameters.
+/// `compiled_circuit` is the JSON that `nargo compile` (nargo 1.0.0-beta.26) writes
+/// for the `visa_fdda` or `mastercard_dda` package. The scheme is detected from the circuit's parameters.
 ///
 /// Deterministic and slow. Run it once and distribute the keys with `to_bytes`.
 ///

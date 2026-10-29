@@ -1,4 +1,4 @@
-//! A mock card: the synthetic taps in `circuits/fixtures/`, whose signed dynamic data is
+//! A mock card: the circuits' synthetic taps, whose signed dynamic data is
 //! re-signed with the fixture's test ICC key for whatever challenge the prover received.
 //! Its CA key's private key is public, so only a verifier that trusts the test CA table
 //! accepts it. Shared by the tests, the bench and the examples.
@@ -33,8 +33,8 @@ pub(crate) fn unhex(v: &Value) -> Vec<u8> {
     const_hex::decode(v.as_str().unwrap()).unwrap()
 }
 
-/// The test CA key from `fixtures/test-ca-keys.json`. Its private key is public, via
-/// `fixtures/synthetic.rs`'s seed, so only tests may trust it.
+/// The synthetic taps' test CA key. Its private key is public, via the fixture
+/// generator's seed, so only tests may trust it.
 pub(crate) fn test_ca_table() -> CaTable {
     let path = format!("{}/fixtures/test-ca-keys.json", circuits());
     CaTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()

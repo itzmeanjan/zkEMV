@@ -22,7 +22,7 @@ use crate::{
 };
 
 const SEED: u64 = 2609;
-/// Unused by any real key under these RIDs in `data/`.
+/// Unused by any real key under these RIDs in the repository's CA key table.
 const CA_INDEX: u8 = 0xEE;
 const CA_PUBKEY_BIT_LEN: usize = Scheme::VisaFdda.ca_pubkey_bit_len();
 const CERT_EXPIRY_MMYY: [u8; 2] = [0x12, 0x49];
@@ -216,8 +216,8 @@ struct CaKey {
     expires: Option<&'static str>,
 }
 
-/// `ca_keys` is `data/certificate-authority-public-keys.json`, whose field descriptions the test
-/// table repeats.
+/// `ca_keys` is the repository's CA key table, whose field descriptions the test table
+/// repeats.
 pub(crate) fn generate(ca_keys: &[u8]) -> Fixtures {
     let mut rng = Rng::seed_from_u64(SEED);
     let ca = RsaKey::generate(CA_PUBKEY_BIT_LEN, &mut rng);

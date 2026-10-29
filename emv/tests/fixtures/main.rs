@@ -1,5 +1,5 @@
-//! Writes everything generated from the synthetic taps: `circuits/fixtures/`, and each circuit's
-//! `src/tests/vectors.nr`. Run by `make fixtures`.
+//! Writes everything generated from the synthetic taps: the circuits' fixtures and each
+//! circuit's test vectors. Run by `make fixtures`.
 
 mod inputs;
 mod layout;
@@ -56,7 +56,7 @@ fn generate_fixtures() {
     }
 }
 
-/// A `u32` global of the circuit's `src/main.nr`.
+/// A `u32` global declared in the circuit's main file.
 fn circuit_global(package: &std::path::Path, name: &str) -> usize {
     let main = fs::read_to_string(package.join("src/main.nr")).unwrap();
     let declaration = format!("global {name}: u32 = ");

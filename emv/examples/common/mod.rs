@@ -22,14 +22,14 @@ pub(crate) fn today() -> emv::Result<YearMonth> {
     YearMonth::new(u16::try_from(now.year()).expect("the year is positive"), now.month().into())
 }
 
-/// Keys from `circuits/target/<scheme>.json`, prepared once per deployment. The test CA
+/// Keys from the scheme's compiled circuit, prepared once per deployment. The test CA
 /// table, which the mock card chains to; a real verifier loads a table of real keys.
 pub(crate) fn setup(scheme: Scheme) -> emv::Result<(ProvingKey, VerifyingKey, CaTable)> {
     let (pk, vk) = prepare(&mock::compiled(scheme))?;
     Ok((pk, vk, mock::test_ca_table()))
 }
 
-/// `circuits/fixtures/bin-table.json`, which has the mock cards' BINs. The phone ships the
+/// The synthetic BIN table, which has the mock cards' BINs. The phone ships the
 /// table; the verifier needs only its root.
 pub(crate) fn bins() -> emv::Result<BinTable> {
     let path = format!("{}/fixtures/bin-table.json", mock::circuits());
@@ -51,7 +51,7 @@ pub(crate) fn phone(pk: &ProvingKey, challenge: &[u8], origin: &str) -> emv::Res
     Ok(Response {
         proof: pk.prove(&challenge, &ca, &card, Some(&bins()?))?.to_bytes()?,
         rid: challenge.scheme().rid(),
-        // The mock card's `8F`: the test CA key in `circuits/fixtures/test-ca-keys.json`.
+        // The mock card's `8F`: the test CA key's index.
         index: 0xEE,
     })
 }

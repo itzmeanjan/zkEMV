@@ -5,7 +5,7 @@ use crate::{
     layout::{DECIMAL_BASE, MAX_DECIMAL_DIGIT, NIBBLE_BIT_LEN, NIBBLE_MASK, NIBBLES_PER_BYTE, RSA_EXPONENT},
 };
 
-/// `circuits/emv/src/card_chain.nr`'s layout of recovered certificates, Book 2 tables 6 and 14.
+/// The circuits' layout of recovered certificates, Book 2 tables 6 and 14.
 const RECOVERED_DATA_HEADER: u8 = 0x6A;
 const FMT_ISSUER_CERT: u8 = 0x02;
 const FMT_ICC_CERT: u8 = 0x04;

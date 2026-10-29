@@ -1,5 +1,5 @@
 //! Merkle paths in the BIN table's tree, which `emv::BinTable` keeps private: leaf layout
-//! and node hash as in its docs and `circuits/emv/src/bin_table.nr`.
+//! and node hash as in its docs and the circuits.
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
