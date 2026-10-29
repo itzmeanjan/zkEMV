@@ -1456,6 +1456,8 @@ dependencies = [
  "provekit_acir",
  "provekit_noirc_abi",
  "provekit_noirc_artifacts",
+ "rand_chacha 0.9.0",
+ "serde",
  "serde_json",
  "sha1",
  "taceo-poseidon2",

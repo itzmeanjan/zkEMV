@@ -31,7 +31,7 @@ fn keys(scheme: Scheme) -> &'static (ProvingKey, VerifyingKey) {
     })
 }
 
-/// `fixtures/bin-table.json`: one range per synthetic tap's BIN.
+/// The synthetic BIN table: one range per synthetic tap's BIN.
 fn bins() -> &'static BinTable {
     static TABLE: OnceLock<BinTable> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -143,8 +143,8 @@ fn forged_nullifier_is_rejected() {
     assert!(matches!(err, Error::ProveKit(_)), "{err}");
 }
 
-/// Both synthetic certificates expire in December 2049 (`gen_synthetic.py`'s
-/// `CERT_EXPIRY_MMYY`).
+/// Both synthetic certificates expire in December 2049 (the fixture
+/// generator's `CERT_EXPIRY_MMYY`).
 #[test]
 fn certificates_are_valid_through_their_expiry_month() {
     for scheme in SCHEMES {
@@ -195,9 +195,9 @@ fn altered_challenge_is_rejected() {
     }
 }
 
-/// Real keys from `data/`, which the synthetic taps don't chain to.
+/// Real keys from the repository's CA key table, which the synthetic taps don't chain to.
 fn data_table() -> CaTable {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../data/certificate-authority-public-keys.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/data/certificate-authority-public-keys.json");
     CaTable::from_json(&std::fs::read(path).unwrap()).unwrap()
 }
 
@@ -228,7 +228,7 @@ fn ca_key_must_fit_the_verified_challenge() {
         .unwrap();
     let cases = [
         (visa_09, today()),
-        // Mastercard `06` expires 2028-12-31 in `data/`.
+        // Mastercard `06` expires 2028-12-31 in the repository's CA key table.
         (mastercard_06(YearMonth::new(2028, 12).unwrap()), YearMonth::new(2029, 1).unwrap()),
     ];
     for (ca, month) in cases {
@@ -336,7 +336,7 @@ fn disclosing(scheme: Scheme, disclosure: Disclosure) -> Challenge<Issued> {
     issue(scheme, Scope::Verifier, today()).disclose(bins().root(), disclosure)
 }
 
-/// `gen_synthetic.py`'s `BIN_ATTRIBUTES`; brand codes index the fixture's brand list.
+/// The fixture generator's `KINDS`; brand codes index the fixture's brand list.
 fn synthetic_attributes(scheme: Scheme) -> (Disclosed, &'static str) {
     match scheme {
         Scheme::VisaFdda => (

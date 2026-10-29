@@ -1,8 +1,8 @@
 //! Use case 2, once per card per verifier: a free trial one card can claim once.
 //! Another verifier sees an unrelated nullifier, so the two can't link the card.
 //!
-//! `cargo run --release --example per_verifier`, after `nargo compile --workspace` in
-//! `circuits/`.
+//! `cargo run --release --example per_verifier`, after compiling the circuits with
+//! `nargo compile --workspace`.
 
 mod common;
 

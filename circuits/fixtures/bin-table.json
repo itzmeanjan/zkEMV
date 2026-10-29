@@ -1,6 +1,6 @@
 {
   "source": {
-    "repository": "scripts/gen_synthetic.py"
+    "repository": "emv/tests/fixtures"
   },
   "tree": {
     "depth": 24,

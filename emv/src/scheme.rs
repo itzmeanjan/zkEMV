@@ -12,7 +12,7 @@ const VISA_ICC_PUBKEY_BIT_LEN: usize = 1024;
 const MASTERCARD_ISSUER_PUBKEY_BIT_LEN: usize = 1920;
 const MASTERCARD_ICC_PUBKEY_BIT_LEN: usize = 1152;
 
-/// A circuit package in this repository's `circuits/`. Each scheme has its own key pair and fixed key widths.
+/// One of this repository's Noir circuit packages. Each scheme has its own key pair and fixed key widths.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Scheme {
     /// Visa, fDDA. The GPO response signs the nonce, amount, currency and `9F69`.

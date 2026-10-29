@@ -16,7 +16,7 @@ const NODE: &str = "Poseidon2 (noir-lang/poseidon v0.3.0, t = 4) of the left and
 const HEADER_ORDER: [&str; 3] = ["source", "license", "fields"];
 
 impl BinTable {
-    /// Parses `data/bin-table.json`'s format. A given root must match; other top-level keys are kept.
+    /// Parses a BIN table from JSON: its `tree`, `brands` and `ranges`. A given root must match; other top-level keys are kept.
     ///
     /// # Errors
     ///

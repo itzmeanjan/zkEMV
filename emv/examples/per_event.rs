@@ -1,8 +1,8 @@
 //! Use case 3, once per card per event: a vote per card in each poll. Votes in different
 //! polls carry unrelated nullifiers, so they don't link.
 //!
-//! `cargo run --release --example per_event`, after `nargo compile --workspace` in
-//! `circuits/`.
+//! `cargo run --release --example per_event`, after compiling the circuits with
+//! `nargo compile --workspace`.
 
 mod common;
 

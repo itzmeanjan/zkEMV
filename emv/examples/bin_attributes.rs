@@ -2,8 +2,8 @@
 //! prepaid. The verifier asks only for the card type and whether the card is commercial; it
 //! learns neither the country, nor the brand, nor the BIN.
 //!
-//! `cargo run --release --example bin_attributes`, after `nargo compile --workspace` in
-//! `circuits/`.
+//! `cargo run --release --example bin_attributes`, after compiling the circuits with
+//! `nargo compile --workspace`.
 
 mod common;
 
