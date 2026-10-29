@@ -273,23 +273,23 @@ class EmvReader {
       _ => throw UnsupportedCard("This card's CA key index is malformed."),
     };
     final common = {
-      'issuer_cert': hex(sized(0x90, _issuerCertLength)),
-      'issuer_exponent': exponent(0x9F32),
-      'icc_cert': hex(sized(0x9F46, widths.iccCert)),
-      'icc_exponent': exponent(0x9F47),
-      'static_data': hex(_staticData(nodes, aip, staticData)),
-      'sdad': hex(sdad),
+      'issuer_pubkey_cert': hex(sized(0x90, _issuerCertLength)),
+      'issuer_pubkey_exponent': exponent(0x9F32),
+      'icc_pubkey_cert': hex(sized(0x9F46, widths.iccCert)),
+      'icc_pubkey_exponent': exponent(0x9F47),
+      'static_data_to_authenticate': hex(_staticData(nodes, aip, staticData)),
+      'signed_dynamic_app_data': hex(sdad),
     };
     final Map<String, Object> fields = switch (scheme) {
       CardScheme.visaFdda => {
         'scheme': scheme.id,
         ...common,
-        'card_auth_data': hex(sized(0x9F69, 7)),
+        'card_auth_related_data': hex(sized(0x9F69, 7)),
       },
       CardScheme.mastercardDda => {
         'scheme': scheme.id,
         ...common,
-        'issuer_remainder': hex(sized(0x92, 28)),
+        'issuer_pubkey_remainder': hex(sized(0x92, 28)),
       },
     };
     return CardRead(

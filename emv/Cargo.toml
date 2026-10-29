@@ -31,6 +31,8 @@ thiserror = "=2.0.21"
 
 [dev-dependencies]
 criterion = "=0.8.2"
+rand_chacha = "=0.9.0"
+serde = { version = "=1.0.229", features = ["derive"] }
 time = "=0.3.55"
 
 [[bench]]
@@ -42,7 +44,8 @@ unsafe_code = "forbid"
 unreachable_pub = "forbid"
 # Not forbid: thiserror's derive allows it.
 unused_qualifications = "deny"
-rust_2018_idioms = { level = "forbid", priority = -1 }
+# Not forbid: serde's derive allows one of its lints.
+rust_2018_idioms = { level = "deny", priority = -1 }
 
 [lints.clippy]
 # Not forbid: thiserror's derive allows one of its lints.

@@ -1,7 +1,8 @@
 //! Proves and verifies a synthetic tap from `circuits/fixtures/` with the loaded keys, to
 //! time both on the device without a card. The tap's SDAD is re-signed for a fresh
 //! challenge with the fixture's test ICC key, as `emv/tests/common/mock.rs` does. Its CA
-//! is the test CA, whose private key is public, so the table is used here only.
+//! is the test CA, whose private key is public, so the table is used here only. The challenge
+//! asks for no BIN attributes: the synthetic PANs are in no real BIN table.
 
 use std::time::Instant;
 
@@ -12,7 +13,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
 
-use crate::api::{IssueRequest, SchemeName, ScopeRequest, issue_challenge, proving_key, verifying_key};
+use crate::api::{IssueRequest, SchemeName, ScopeRequest, issue_challenge, proving_key, verified_json, verifying_key};
 
 const VISA_FDDA: &[u8] = include_bytes!("../../../circuits/fixtures/visa_fdda.json");
 const MASTERCARD_DDA: &[u8] = include_bytes!("../../../circuits/fixtures/mastercard_dda.json");
@@ -39,8 +40,9 @@ pub(crate) fn run(r: &Request) -> Result<Value> {
         scope: ScopeRequest::Verifier,
         year: r.year,
         month: r.month,
-        amount: visa.then_some([0, 0, 0, 0, 1, 0]),
-        currency: visa.then_some([0x03, 0x56]),
+        amount_authorised: visa.then_some([0, 0, 0, 0, 1, 0]),
+        currency_code: visa.then_some([0x03, 0x56]),
+        disclose: Vec::new(),
     })?;
     let received = Challenge::from_bytes(&issued.to_bytes(), &r.origin)?;
 
@@ -54,22 +56,25 @@ pub(crate) fn run(r: &Request) -> Result<Value> {
     let (pk, vk) = (proving_key(scheme)?, verifying_key(scheme)?);
 
     let start = Instant::now();
-    let proof = pk.prove(&received, &table.lookup(&received, rid, index)?, &card)?;
+    let proof = pk.prove(&received, &table.lookup(&received, rid, index)?, &card, None)?;
     let prove = start.elapsed();
     let bytes = proof.to_bytes()?;
 
     let start = Instant::now();
     let ca = table.lookup(&issued, rid, index)?;
-    let nullifier = vk.verify(issued, &ca, &Proof::from_bytes(&bytes)?)?;
+    let verified = vk.verify(issued, &ca, &Proof::from_bytes(&bytes)?)?;
     let verify = start.elapsed();
 
-    Ok(json!({
+    let mut out = json!({
         "scheme": r.scheme,
         "prove_ms": prove.as_secs_f64() * 1e3,
         "verify_ms": verify.as_secs_f64() * 1e3,
         "proof_bytes": bytes.len(),
-        "nullifier": nullifier.map(|n| const_hex::encode(n.to_bytes())),
-    }))
+    });
+    if let (Some(out), Value::Object(verified)) = (out.as_object_mut(), verified_json(&verified)) {
+        out.extend(verified);
+    }
+    Ok(out)
 }
 
 fn unhex(v: &Value) -> Result<Vec<u8>> {
@@ -87,29 +92,29 @@ fn opt_tag(doc: &Value, t: &str) -> Result<Option<Vec<u8>>> {
 
 fn tap(doc: &Value, challenge: &Challenge<Received>) -> Result<Card> {
     let terminal_data = match challenge.transaction() {
-        Some(t) => [&challenge.nonce()[..], &t.amount, &t.currency, &tag(doc, "9F69")?].concat(),
+        Some(t) => [&challenge.nonce()[..], &t.amount_authorised, &t.currency_code, &tag(doc, "9F69")?].concat(),
         None => challenge.nonce().to_vec(),
     };
     let sdad = resign(&doc["testIccKey"], &tag(doc, "9F4B")?, &terminal_data)?;
     let exponent = |t| tag(doc, t)?.first().copied().context("empty exponent");
     Ok(match challenge.scheme() {
         Scheme::VisaFdda => Card::VisaFdda(VisaFdda {
-            issuer_cert: tag(doc, "90")?,
-            issuer_exponent: exponent("9F32")?,
-            icc_cert: tag(doc, "9F46")?,
-            icc_exponent: exponent("9F47")?,
-            static_data: static_data(doc, &opt_tag(doc, "9F4A")?.unwrap_or_default(), &tag(doc, "82")?)?,
-            sdad,
-            card_auth_data: tag(doc, "9F69")?,
+            issuer_pubkey_cert: tag(doc, "90")?,
+            issuer_pubkey_exponent: exponent("9F32")?,
+            icc_pubkey_cert: tag(doc, "9F46")?,
+            icc_pubkey_exponent: exponent("9F47")?,
+            static_data_to_authenticate: static_data(doc, &opt_tag(doc, "9F4A")?.unwrap_or_default(), &tag(doc, "82")?)?,
+            signed_dynamic_app_data: sdad,
+            card_auth_related_data: tag(doc, "9F69")?,
         }),
         Scheme::MastercardDda => Card::MastercardDda(MastercardDda {
-            issuer_cert: tag(doc, "90")?,
-            issuer_remainder: tag(doc, "92")?,
-            issuer_exponent: exponent("9F32")?,
-            icc_cert: tag(doc, "9F46")?,
-            icc_exponent: exponent("9F47")?,
-            static_data: static_data(doc, &tag(doc, "9F4A")?, &tag(doc, "82")?)?,
-            sdad,
+            issuer_pubkey_cert: tag(doc, "90")?,
+            issuer_pubkey_remainder: tag(doc, "92")?,
+            issuer_pubkey_exponent: exponent("9F32")?,
+            icc_pubkey_cert: tag(doc, "9F46")?,
+            icc_pubkey_exponent: exponent("9F47")?,
+            static_data_to_authenticate: static_data(doc, &tag(doc, "9F4A")?, &tag(doc, "82")?)?,
+            signed_dynamic_app_data: sdad,
         }),
     })
 }

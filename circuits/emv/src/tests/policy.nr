@@ -1,4 +1,4 @@
-use crate::{assert_issuer_id_matches_pan, assert_not_expired};
+use crate::policy::{assert_issuer_id_matches_pan, assert_not_expired};
 
 // Expiry is MMYY BCD; today is YYMM.
 

@@ -46,15 +46,22 @@ fn setup() {
                 json!({ "scheme": package })
             );
         }
-        let table = std::fs::read(format!("{ROOT}/data/certificate-authority-public-keys.json")).unwrap();
+        let table = std::fs::read(format!("{ROOT}/resources/data/certificate-authority-public-keys.json")).unwrap();
         call_json("load_ca_table", &Value::Null, &table).unwrap();
+        let bins = std::fs::read(format!("{ROOT}/resources/data/bin-table.json")).unwrap();
+        let root = call_json("load_bin_table", &Value::Null, &bins).unwrap();
+        assert_eq!(root["root"].as_str().unwrap().len(), 64);
     });
 }
 
 fn issue_visa() -> Value {
+    issue_visa_disclosing(&json!([]))
+}
+
+fn issue_visa_disclosing(disclose: &Value) -> Value {
     call_json(
         "issue",
-        &json!({ "scheme": "visa_fdda", "origin": "zkemv.test", "scope": "verifier", "year": 2026, "month": 9, "amount": "000000000100", "currency": "0356" }),
+        &json!({ "scheme": "visa_fdda", "origin": "zkemv.test", "scope": "verifier", "year": 2026, "month": 9, "amount_authorised": "000000000100", "currency_code": "0356", "disclose": disclose }),
         &[],
     )
     .unwrap()
@@ -71,6 +78,7 @@ fn self_test_proves_and_verifies_each_scheme() {
         assert!(first["prove_ms"].as_f64().unwrap() > 0.0);
         assert!(first["nullifier"].is_string());
         assert_eq!(first["nullifier"], second["nullifier"], "one card, one verifier scope");
+        assert_eq!(first["bin"], json!({ "country": null, "card_type": null, "brand": null, "commercial": null }));
     }
 }
 
@@ -81,9 +89,18 @@ fn receive_returns_what_the_tap_sends() {
     let received = call_json("receive", &json!({ "challenge": issued["challenge"], "origin": "zkemv.test" }), &[]).unwrap();
     assert_eq!(received["scheme"], "visa_fdda");
     assert_eq!(received["nonce"].as_str().unwrap().len(), 8);
-    assert_eq!(received["amount"], "000000000100");
-    assert_eq!(received["currency"], "0356");
+    assert_eq!(received["amount_authorised"], "000000000100");
+    assert_eq!(received["currency_code"], "0356");
     assert_eq!((received["year"].as_u64(), received["month"].as_u64()), (Some(2026), Some(9)));
+    assert_eq!(received["disclose"], json!([]));
+}
+
+#[test]
+fn receive_lists_the_bin_attributes_asked_for() {
+    setup();
+    let issued = issue_visa_disclosing(&json!(["commercial", "country"]));
+    let received = call_json("receive", &json!({ "challenge": issued["challenge"], "origin": "zkemv.test" }), &[]).unwrap();
+    assert_eq!(received["disclose"], json!(["country", "commercial"]));
 }
 
 #[test]
@@ -99,7 +116,16 @@ fn forget_drops_the_issued_challenge() {
 fn prove_rejects_a_ca_key_outside_the_table() {
     setup();
     let issued = issue_visa();
-    let card = json!({ "scheme": "visa_fdda", "issuer_cert": "", "issuer_exponent": 3, "icc_cert": "", "icc_exponent": 3, "static_data": "", "sdad": "", "card_auth_data": "" });
+    let card = json!({
+        "scheme": "visa_fdda",
+        "issuer_pubkey_cert": "",
+        "issuer_pubkey_exponent": 3,
+        "icc_pubkey_cert": "",
+        "icc_pubkey_exponent": 3,
+        "static_data_to_authenticate": "",
+        "signed_dynamic_app_data": "",
+        "card_auth_related_data": "",
+    });
     // `EE` is the test CA: only the self-test trusts it.
     let request = json!({ "challenge": issued["challenge"], "origin": "zkemv.test", "rid": "a000000003", "index": 0xEE, "card": card });
     let err = call("prove", &request, &[]).unwrap_err();
@@ -129,7 +155,7 @@ fn rejects_malformed_calls() {
         (
             "issue",
             json!({ "scheme": "visa_fdda", "origin": "o", "scope": "verifier", "year": 2026, "month": 9 }),
-            "needs amount and currency",
+            "needs amount_authorised and currency_code",
         ),
         (
             "issue",

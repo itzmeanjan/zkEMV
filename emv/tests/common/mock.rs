@@ -1,4 +1,4 @@
-//! A mock card: the synthetic taps in `circuits/fixtures/`, whose signed dynamic data is
+//! A mock card: the circuits' synthetic taps, whose signed dynamic data is
 //! re-signed with the fixture's test ICC key for whatever challenge the prover received.
 //! Its CA key's private key is public, so only a verifier that trusts the test CA table
 //! accepts it. Shared by the tests, the bench and the examples.
@@ -33,8 +33,8 @@ pub(crate) fn unhex(v: &Value) -> Vec<u8> {
     const_hex::decode(v.as_str().unwrap()).unwrap()
 }
 
-/// The test CA key from `fixtures/test-ca-keys.json`. Its private key is public, via
-/// `gen_synthetic.py`'s seed, so only tests may trust it.
+/// The synthetic taps' test CA key. Its private key is public, via the fixture
+/// generator's seed, so only tests may trust it.
 pub(crate) fn test_ca_table() -> CaTable {
     let path = format!("{}/fixtures/test-ca-keys.json", circuits());
     CaTable::from_json(&std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))).unwrap()
@@ -46,49 +46,50 @@ pub(crate) fn tap(challenge: &Challenge<Received>) -> (CaKey, Card) {
     tap_fixture(challenge, package(challenge.scheme()))
 }
 
-/// As [`tap`], for the synthetic tap in `fixtures/<fixture>.json`.
+/// As [`tap`], for the synthetic tap `fixtures/<fixture>.json`.
 pub(crate) fn tap_fixture(challenge: &Challenge<Received>, fixture: &str) -> (CaKey, Card) {
     let scheme = challenge.scheme();
     let circuits = circuits();
     let doc = read_json(&format!("{circuits}/fixtures/{fixture}.json"));
-    let opt = |t: &str| -> Option<Vec<u8>> {
+    let optional_tag = |t: &str| -> Option<Vec<u8>> {
         let el = doc["elements"].as_array().unwrap().iter().find(|e| e["tag"] == t);
         el.map(|e| unhex(&e["value"]))
     };
-    let tag = |t: &str| -> Vec<u8> { opt(t).unwrap_or_else(|| panic!("no tag {t}")) };
+    let tag = |t: &str| -> Vec<u8> { optional_tag(t).unwrap_or_else(|| panic!("no tag {t}")) };
+    let static_data = static_data(&doc, &optional_tag("9F4A").unwrap_or_default(), &tag("82"));
 
     let rid = unhex(&doc["selectedAid"])[..5].try_into().unwrap();
     let ca = test_ca_table().lookup(challenge, rid, tag("8F")[0]).unwrap();
 
     let terminal_data = match challenge.transaction() {
-        Some(t) => [&challenge.nonce()[..], &t.amount, &t.currency, &tag("9F69")].concat(),
+        Some(t) => [&challenge.nonce()[..], &t.amount_authorised, &t.currency_code, &tag("9F69")].concat(),
         None => challenge.nonce().to_vec(),
     };
     let sdad = resign(&doc["testIccKey"], &tag("9F4B"), &terminal_data);
     let card = match scheme {
         Scheme::VisaFdda => Card::VisaFdda(VisaFdda {
-            issuer_cert: tag("90"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            static_data: static_data(&doc, &opt("9F4A").unwrap_or_default(), &tag("82")),
-            sdad,
-            card_auth_data: tag("9F69"),
+            issuer_pubkey_cert: tag("90"),
+            issuer_pubkey_exponent: tag("9F32")[0],
+            icc_pubkey_cert: tag("9F46"),
+            icc_pubkey_exponent: tag("9F47")[0],
+            static_data_to_authenticate: static_data,
+            signed_dynamic_app_data: sdad,
+            card_auth_related_data: tag("9F69"),
         }),
         Scheme::MastercardDda => Card::MastercardDda(MastercardDda {
-            issuer_cert: tag("90"),
-            issuer_remainder: tag("92"),
-            issuer_exponent: tag("9F32")[0],
-            icc_cert: tag("9F46"),
-            icc_exponent: tag("9F47")[0],
-            static_data: static_data(&doc, &opt("9F4A").unwrap_or_default(), &tag("82")),
-            sdad,
+            issuer_pubkey_cert: tag("90"),
+            issuer_pubkey_remainder: tag("92"),
+            issuer_pubkey_exponent: tag("9F32")[0],
+            icc_pubkey_cert: tag("9F46"),
+            icc_pubkey_exponent: tag("9F47")[0],
+            static_data_to_authenticate: static_data,
+            signed_dynamic_app_data: sdad,
         }),
     };
     (ca, card)
 }
 
-/// `verify_emv_reference.static_data_to_authenticate`, for records shorter than 256 bytes.
+/// Book 3 10.3's static data to authenticate, for records shorter than 256 bytes.
 fn static_data(doc: &Value, tag_list: &[u8], aip: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     for entry in doc["afl"].as_array().unwrap() {

@@ -13,8 +13,8 @@ fn challenge(scheme: Scheme, year: u16, month: u8) -> Challenge<Issued> {
             Scope::Verifier,
             today,
             Transaction {
-                amount: [0; 6],
-                currency: [0x08, 0x40],
+                amount_authorised: [0; 6],
+                currency_code: [0x08, 0x40],
             },
         ),
         Scheme::MastercardDda => Challenge::mastercard_dda("verifier.example", Scope::Verifier, today),
@@ -28,7 +28,7 @@ fn now(scheme: Scheme) -> Challenge<Issued> {
 
 /// The repository's table: 182 keys from third-party lists.
 fn data_table() -> CaTable {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../data/certificate-authority-public-keys.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/data/certificate-authority-public-keys.json");
     CaTable::from_json(&std::fs::read(path).unwrap()).unwrap()
 }
 
@@ -104,7 +104,7 @@ fn lookup_takes_only_the_circuits_width_and_exponent_3() {
 
 #[test]
 fn keys_are_valid_through_their_expiry_month() {
-    // Both expire 2028-12-31 in `data/`.
+    // Both expire 2028-12-31 in the repository's CA key table.
     let data = data_table();
     for (scheme, index) in [(Scheme::VisaFdda, 0x09), (Scheme::MastercardDda, 0x06)] {
         data.lookup(&challenge(scheme, 2028, 12), scheme.rid(), index).unwrap();

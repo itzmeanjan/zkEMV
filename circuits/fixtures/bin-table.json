@@ -1,0 +1,21 @@
+{
+  "source": {
+    "repository": "emv/tests/fixtures"
+  },
+  "tree": {
+    "depth": 24,
+    "leaf": "low + high·2^40 + country·2^80 + type·2^90 + brand·2^92 + commercial·2^100 + 2^101; 0 if empty. type: credit 1, debit 2, prepaid 3.",
+    "node": "Poseidon2 (noir-lang/poseidon v0.3.0, t = 4) of the left and right child.",
+    "prefix_digits": 12,
+    "root": "11c1477cc885ff6570fb6bcf2387db47fa5031a31dbd303496b664779d06b8f6"
+  },
+  "brands": [
+    "MASTERCARD",
+    "VISA"
+  ],
+  "ranges": [
+    {"slot": 0, "low": 999990000000, "high": 999990999999, "country": 999, "type": "credit", "brand": "VISA", "commercial": false},
+    {"slot": 1, "low": 999991000000, "high": 999991999999, "country": 998, "type": "prepaid", "brand": "MASTERCARD", "commercial": true},
+    {"slot": 2, "low": 999992000000, "high": 999992999999, "country": 997, "type": "debit", "brand": "VISA", "commercial": false}
+  ]
+}

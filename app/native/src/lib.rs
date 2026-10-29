@@ -8,17 +8,21 @@
 //! | `load_proving_key` | | `.pkp` | `{scheme}` |
 //! | `load_verifying_key` | | `.pkv` | `{scheme}` |
 //! | `load_ca_table` | | CA table JSON | `{}` |
-//! | `issue` | `{scheme, origin, scope, year, month, amount?, currency?}` | | `{id, challenge}` |
+//! | `load_bin_table` | | BIN table JSON | `{root}` |
+//! | `issue` | `{scheme, origin, scope, year, month, amount_authorised?, currency_code?, disclose?}` | | `{id, challenge}` |
 //! | `forget` | `{id}` | | `{}` |
-//! | `receive` | `{challenge, origin}` | | `{scheme, nonce, year, month, amount, currency}` |
+//! | `receive` | `{challenge, origin}` | | `{scheme, nonce, year, month, amount_authorised, currency_code, disclose}` |
 //! | `check_ca` | `{challenge, origin, rid, index}` | | `{}`, or an error if no CA key fits |
 //! | `prove` | `{challenge, origin, rid, index, card}` | | proof bytes |
-//! | `verify` | `{id, rid, index}` | proof bytes | `{nullifier}` |
-//! | `self_test` (feature `self-test`) | `{scheme, origin, year, month}` | | `{scheme, prove_ms, verify_ms, proof_bytes, nullifier}` |
+//! | `verify` | `{id, rid, index}` | proof bytes | `{nullifier, bin}` |
+//! | `self_test` (feature `self-test`) | `{scheme, origin, year, month}` | | `{scheme, prove_ms, verify_ms, proof_bytes, nullifier, bin}` |
 //!
 //! Byte strings in JSON are hex. `scheme` is `visa_fdda` or `mastercard_dda`; `scope` is
-//! `"unlinkable"`, `"verifier"` or `{"event": hex}`. Keys, the CA table and issued
-//! challenges live in process-wide state, shared by all threads.
+//! `"unlinkable"`, `"verifier"` or `{"event": hex}`. `disclose` lists BIN table attributes
+//! (`country`, `card_type`, `brand`, `commercial`); asking for any needs the BIN table, whose
+//! root the challenge carries. `bin` has each attribute asked for, `null` otherwise, with the
+//! brand by name. Keys, the CA and BIN tables, and issued challenges live in process-wide
+//! state, shared by all threads.
 
 #![forbid(
     missing_docs,

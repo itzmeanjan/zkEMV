@@ -3,12 +3,9 @@
 CIRCUITS_DIR := circuits
 EMV_DIR      := emv
 CIRCUITS     := visa_fdda mastercard_dda
-PY_SCRIPTS   := $(CIRCUITS_DIR)/scripts
-VENV         := .venv
-VENV_BIN     := $(VENV)/bin
-VENV_STAMP   := $(VENV)/.requirements-installed
 ANDROID_DIR  ?= /data/local/tmp/zkemv
 ANDROID_OUT  := $(EMV_DIR)/target/android
+DATA_DIR     := resources/data
 APP_DIR      := app
 NATIVE_DIR   := $(APP_DIR)/native
 APP_ASSETS   := $(APP_DIR)/assets/generated
@@ -28,15 +25,20 @@ help: ## Prints help menu
 test-circuits: ## Runs the Noir circuit tests
 	cd $(CIRCUITS_DIR) && nargo test --workspace
 
+.PHONY: fixtures
+fixtures: ## Regenerates circuits/fixtures/ and each tap's test vectors in its circuit's src/tests/ from the seed
+	cd $(EMV_DIR) && cargo test --release --test fixtures -- --ignored
+	cd $(CIRCUITS_DIR) && nargo fmt
+
 .PHONY: test-e2e
 test-e2e: ## Compiles the circuits, then proves and verifies the synthetic taps through the emv crate
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(EMV_DIR) && cargo test --release
 
 .PHONY: examples
-examples: ## Compiles the circuits, then runs the visa_fdda examples: presence, per_verifier, per_event
+examples: ## Compiles the circuits, then runs the examples: presence, per_verifier, per_event, bin_attributes
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
-	cd $(EMV_DIR) && for e in presence per_verifier per_event; do cargo run --release --example $$e || exit 1; done
+	cd $(EMV_DIR) && for e in presence per_verifier per_event bin_attributes; do cargo run --release --example $$e || exit 1; done
 
 .PHONY: circuit-stats
 circuit-stats: ## Compiles the circuits, then prints each one's R1CS constraint and witness counts under ProveKit
@@ -62,10 +64,10 @@ bench-android: ## Builds the benchmark for arm64 Android in Docker, then runs it
 	adb shell 'cd $(ANDROID_DIR) && ZKEMV_CIRCUITS=$(ANDROID_DIR)/circuits ./prove_verify --bench --noplot'
 
 .PHONY: app-keys
-app-keys: ## Compiles the circuits, then writes the app's proving and verifying keys and CA table to its assets
+app-keys: ## Compiles the circuits, then writes the app's proving and verifying keys, CA table and BIN table to its assets
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(NATIVE_DIR) && cargo run --locked --release --bin prepare-keys -- ../assets/generated/keys $(foreach c,$(CIRCUITS),../../$(CIRCUITS_DIR)/target/$(c).json)
-	cp data/certificate-authority-public-keys.json $(APP_ASSETS)/
+	cp $(DATA_DIR)/certificate-authority-public-keys.json $(DATA_DIR)/bin-table.json $(APP_ASSETS)/
 
 .PHONY: app-native
 app-native: ## Cross-compiles the app's native library for arm64 Android with the NDK
@@ -108,20 +110,8 @@ test-app-native: ## Compiles the circuits, then tests the app's native library o
 	cd $(CIRCUITS_DIR) && nargo compile --workspace
 	cd $(NATIVE_DIR) && cargo test --locked --release --features self-test
 
-$(VENV_STAMP): requirements.txt
-	python3 -m venv $(VENV)
-	$(VENV_BIN)/pip install -r requirements.txt
-	touch $@
-
-.PHONY: venv
-venv: $(VENV_STAMP) ## Creates the Python venv from requirements.txt, if missing or outdated
-
 .PHONY: lint
-lint: lint-python lint-noir lint-rust ## Runs all lints to preserve quality of code
-
-.PHONY: lint-python
-lint-python: $(VENV_STAMP) ## Type-checks the Python scripts
-	$(VENV_BIN)/mypy
+lint: lint-noir lint-rust ## Runs all lints to preserve quality of code
 
 .PHONY: lint-noir
 lint-noir: ## Fails on any Noir compiler warning, under-constrained value checks included
@@ -134,17 +124,12 @@ lint-rust: ## Lints the emv crate and checks its API docs
 	cd $(EMV_DIR) && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
 .PHONY: format
-format: $(VENV_STAMP) ## Formats the Python scripts, the Noir circuits and the emv crate
-	$(VENV_BIN)/black $(PY_SCRIPTS)
+format: ## Formats the Noir circuits and the emv crate
 	cd $(CIRCUITS_DIR) && nargo fmt
 	cd $(EMV_DIR) && cargo fmt
 
 .PHONY: format-check
-format-check: format-check-python format-check-noir format-check-rust ## Runs source format checks
-
-.PHONY: format-check-python
-format-check-python: $(VENV_STAMP) ## Fails if any Python script is not formatted
-	$(VENV_BIN)/black --check $(PY_SCRIPTS)
+format-check: format-check-noir format-check-rust ## Runs source format checks
 
 .PHONY: format-check-noir
 format-check-noir: ## Fails if any Noir circuit is not formatted
@@ -155,6 +140,5 @@ format-check-rust: ## Fails if the emv crate is not formatted
 	cd $(EMV_DIR) && cargo fmt --check
 
 .PHONY: clean
-clean: ## Removes build outputs, proving artifacts and Python caches; keeps the venv
-	rm -rf $(CIRCUITS_DIR)/target $(CIRCUITS_DIR)/artifacts $(EMV_DIR)/target .mypy_cache
-	find . -path ./$(VENV) -prune -o -type d -name __pycache__ -exec rm -rf {} +
+clean: ## Removes build outputs and proving artifacts
+	rm -rf $(CIRCUITS_DIR)/target $(CIRCUITS_DIR)/artifacts $(EMV_DIR)/target

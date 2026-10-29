@@ -28,7 +28,7 @@ const origin = 'zkcard.emv';
 abstract final class Prover {
   static const _assets = 'assets/generated';
 
-  /// Loads both schemes' keys and the CA table into the native library.
+  /// Loads both schemes' keys, the CA table and the BIN table into the native library.
   static Future<void> load() async {
     final blobs = <(String, Uint8List)>[
       for (final s in CardScheme.values) ...[
@@ -36,6 +36,7 @@ abstract final class Prover {
         ('load_verifying_key', await _asset('keys/${s.id}.pkv')),
       ],
       ('load_ca_table', await _asset('certificate-authority-public-keys.json')),
+      ('load_bin_table', await _asset('bin-table.json')),
     ];
     await Isolate.run(() {
       for (final (method, blob) in blobs) {

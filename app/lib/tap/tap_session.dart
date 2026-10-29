@@ -146,8 +146,8 @@ class TapSession extends ValueNotifier<TapStatus> {
         'year': now.year,
         'month': now.month,
         // No money moves: the amount is zero.
-        if (visa) 'amount': '000000000000',
-        if (visa) 'currency': '0840', // USD
+        if (visa) 'amount_authorised': '000000000000',
+        if (visa) 'currency_code': '0840', // USD
       },
     );
     final challenge = issued['challenge']! as String;
@@ -161,8 +161,8 @@ class TapSession extends ValueNotifier<TapStatus> {
       challenge: challenge,
       params: TapParams(
         nonce: bytes(r['nonce'])!,
-        amount: bytes(r['amount']),
-        currency: bytes(r['currency']),
+        amount: bytes(r['amount_authorised']),
+        currency: bytes(r['currency_code']),
       ),
     );
   }

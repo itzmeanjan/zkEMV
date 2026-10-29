@@ -2,7 +2,7 @@
 //! exact widths the circuits use. Exponent-3 recovery needs no factorisation, so no
 //! real key material is involved. Generated with random.Random(2609).
 
-use crate::RsaKey;
+use crate::rsa::RsaKey;
 
 #[test]
 fn recover_1024() {

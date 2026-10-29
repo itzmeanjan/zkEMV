@@ -155,13 +155,13 @@ void main() {
     expect(r.caIndex, card.tags['8F']![0]);
     expect(r.fields, {
       'scheme': 'visa_fdda',
-      'issuer_cert': hex(card.tags['90']!),
-      'issuer_exponent': 3,
-      'icc_cert': hex(card.tags['9F46']!),
-      'icc_exponent': 3,
-      'static_data': '',
-      'sdad': hex(card.tags['9F4B']!),
-      'card_auth_data': hex(card.tags['9F69']!),
+      'issuer_pubkey_cert': hex(card.tags['90']!),
+      'issuer_pubkey_exponent': 3,
+      'icc_pubkey_cert': hex(card.tags['9F46']!),
+      'icc_pubkey_exponent': 3,
+      'static_data_to_authenticate': '',
+      'signed_dynamic_app_data': hex(card.tags['9F4B']!),
+      'card_auth_related_data': hex(card.tags['9F69']!),
     });
 
     // The PDOL's values, in order: the challenge's nonce, amount and currency are where
@@ -194,13 +194,13 @@ void main() {
       expect(hex(r.rid), 'a000000004');
       expect(r.fields, {
         'scheme': 'mastercard_dda',
-        'issuer_cert': hex(card.tags['90']!),
-        'issuer_exponent': 3,
-        'icc_cert': hex(card.tags['9F46']!),
-        'icc_exponent': 3,
-        'sdad': hex(card.tags['9F4B']!),
-        'issuer_remainder': hex(card.tags['92']!),
-        'static_data': hex(staticData),
+        'issuer_pubkey_cert': hex(card.tags['90']!),
+        'issuer_pubkey_exponent': 3,
+        'icc_pubkey_cert': hex(card.tags['9F46']!),
+        'icc_pubkey_exponent': 3,
+        'signed_dynamic_app_data': hex(card.tags['9F4B']!),
+        'issuer_pubkey_remainder': hex(card.tags['92']!),
+        'static_data_to_authenticate': hex(staticData),
       });
       final auth = card.commands.firstWhere((c) => c[1] == 0x88);
       expect(auth.sublist(5, 9), nonce);
@@ -216,8 +216,11 @@ void main() {
       // Template 70 with a short length: tag, length, then the value.
       final value = record.sublist(2, record.length - 2);
       expect(value.length, record[1]);
-      expect(r.fields['static_data'], hex([...value, ...card.tags['82']!]));
-      expect(r.fields['sdad'], hex(card.tags['9F4B']!));
+      expect(
+        r.fields['static_data_to_authenticate'],
+        hex([...value, ...card.tags['82']!]),
+      );
+      expect(r.fields['signed_dynamic_app_data'], hex(card.tags['9F4B']!));
       expect(
         card.commands.any((c) => c[1] == 0xB2 && c[2] == 3 && c[3] == 0x1C),
         isTrue,
